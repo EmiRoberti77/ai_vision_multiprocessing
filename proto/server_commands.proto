@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package server_commands;
+
+enum Command {
+  UNKNOWN = 0;
+  START = 1;
+  STOP = 2;
+  RESTART = 3;
+}
+
+service ServerCommands {
+  rpc ExecuteCommand(ExecuteCommandRequest) returns (ExecuteCommandResponse);
+}
+
+message ExecuteCommandRequest {
+  Command command = 1;
+  string url = 2;
+}
+
+message ExecuteCommandResponse {
+  bool success = 1;
+  optional string message = 2;
+}
