@@ -8,7 +8,7 @@ from ultralytics import YOLO
 ray.init(num_cpus=4, num_gpus=1)
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-@ray.remote(num_gpus=1)
+@ray.remote(num_gpus=0.25)
 class DetectorActor():
     def __init__(self, rtsp_url:str, channel_name:str, model_path:str='yolo11m.pt'):
         self.rtsp_url = rtsp_url
@@ -108,8 +108,15 @@ class DetectorActor():
 
 
 # create actors
-url = ['rtsp://172.23.23.15:8554/mystream_1']
-actors = [DetectorActor.remote(url[0], "channel_1")]
+urls = [
+    'rtsp://172.23.23.15:8554/mystream_1',
+    'rtsp://172.23.23.15:8554/mystream_2',
+    'rtsp://172.23.23.15:8554/mystream_3'
+]
+
+actors = []
+for i, url in enumerate(urls):
+    actors.append(DetectorActor.remote(url, f"channel_{i+1}"))
 
 async def poll():
     print("Starting detection loop...")
