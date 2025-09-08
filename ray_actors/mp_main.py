@@ -8,11 +8,7 @@ from typing import List, Dict, Tuple
 
 import torch
 from ultralytics import YOLO
-
-try:
-    from ray_actors.ocr_processor import OCRProcessor
-except Exception:
-    from .ocr_processor import OCRProcessor
+from ocr_processor import OCRProcessor
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
