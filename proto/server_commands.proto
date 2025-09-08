@@ -9,13 +9,37 @@ enum Command {
   RESTART = 3;
 }
 
+enum FrameOrientation {
+  UNKNOWN_ORIENTATION = 0;
+  PORTRAIT = 1;
+  LANDSCAPE = 2;
+}
+
+enum Rotation {
+  UNKNOWN_ROTATION = 0;
+  ROTATE_0 = 1;
+  ROTATE_90 = 2;
+  ROTATE_180 = 3;
+  ROTATE_270 = 4;
+}
+
+enum ProcessorType {
+  ANY = 0;
+  GPU = 1;
+  CPU = 2;
+}
+
 service ServerCommands {
   rpc ExecuteCommand(ExecuteCommandRequest) returns (ExecuteCommandResponse);
 }
 
 message ExecuteCommandRequest {
   Command command = 1;
-  string url = 2;
+  string call_back_url = 2;
+  string input_url = 3;
+  FrameOrientation frame_orientation = 4;
+  Rotation rotation = 5;
+  ProcessorType processor_type = 6;
 }
 
 message ExecuteCommandResponse {
