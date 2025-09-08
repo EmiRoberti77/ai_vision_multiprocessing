@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-import server_commands_pb2 as server__commands__pb2
+import generated.server_commands_pb2 as server__commands__pb2
 
 GRPC_GENERATED_VERSION = '1.74.0'
 GRPC_VERSION = grpc.__version__

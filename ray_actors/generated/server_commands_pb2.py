@@ -24,19 +24,25 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x15server_commands.proto\x12\x0fserver_commands\"O\n\x15\x45xecuteCommandRequest\x12)\n\x07\x63ommand\x18\x01 \x01(\x0e\x32\x18.server_commands.Command\x12\x0b\n\x03url\x18\x02 \x01(\t\"K\n\x16\x45xecuteCommandResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x14\n\x07message\x18\x02 \x01(\tH\x00\x88\x01\x01\x42\n\n\x08_message*8\n\x07\x43ommand\x12\x0b\n\x07UNKNOWN\x10\x00\x12\t\n\x05START\x10\x01\x12\x08\n\x04STOP\x10\x02\x12\x0b\n\x07RESTART\x10\x03\x32s\n\x0eServerCommands\x12\x61\n\x0e\x45xecuteCommand\x12&.server_commands.ExecuteCommandRequest\x1a\'.server_commands.ExecuteCommandResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x15server_commands.proto\x12\x0fserver_commands\"\x8f\x02\n\x15\x45xecuteCommandRequest\x12)\n\x07\x63ommand\x18\x01 \x01(\x0e\x32\x18.server_commands.Command\x12\x15\n\rcall_back_url\x18\x02 \x01(\t\x12\x11\n\tinput_url\x18\x03 \x01(\t\x12<\n\x11\x66rame_orientation\x18\x04 \x01(\x0e\x32!.server_commands.FrameOrientation\x12+\n\x08rotation\x18\x05 \x01(\x0e\x32\x19.server_commands.Rotation\x12\x36\n\x0eprocessor_type\x18\x06 \x01(\x0e\x32\x1e.server_commands.ProcessorType\"K\n\x16\x45xecuteCommandResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x14\n\x07message\x18\x02 \x01(\tH\x00\x88\x01\x01\x42\n\n\x08_message*8\n\x07\x43ommand\x12\x0b\n\x07UNKNOWN\x10\x00\x12\t\n\x05START\x10\x01\x12\x08\n\x04STOP\x10\x02\x12\x0b\n\x07RESTART\x10\x03*H\n\x10\x46rameOrientation\x12\x17\n\x13UNKNOWN_ORIENTATION\x10\x00\x12\x0c\n\x08PORTRAIT\x10\x01\x12\r\n\tLANDSCAPE\x10\x02*]\n\x08Rotation\x12\x14\n\x10UNKNOWN_ROTATION\x10\x00\x12\x0c\n\x08ROTATE_0\x10\x01\x12\r\n\tROTATE_90\x10\x02\x12\x0e\n\nROTATE_180\x10\x03\x12\x0e\n\nROTATE_270\x10\x04**\n\rProcessorType\x12\x07\n\x03\x41NY\x10\x00\x12\x07\n\x03GPU\x10\x01\x12\x07\n\x03\x43PU\x10\x02\x32s\n\x0eServerCommands\x12\x61\n\x0e\x45xecuteCommand\x12&.server_commands.ExecuteCommandRequest\x1a\'.server_commands.ExecuteCommandResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'server_commands_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_COMMAND']._serialized_start=200
-  _globals['_COMMAND']._serialized_end=256
-  _globals['_EXECUTECOMMANDREQUEST']._serialized_start=42
-  _globals['_EXECUTECOMMANDREQUEST']._serialized_end=121
-  _globals['_EXECUTECOMMANDRESPONSE']._serialized_start=123
-  _globals['_EXECUTECOMMANDRESPONSE']._serialized_end=198
-  _globals['_SERVERCOMMANDS']._serialized_start=258
-  _globals['_SERVERCOMMANDS']._serialized_end=373
+  _globals['_COMMAND']._serialized_start=393
+  _globals['_COMMAND']._serialized_end=449
+  _globals['_FRAMEORIENTATION']._serialized_start=451
+  _globals['_FRAMEORIENTATION']._serialized_end=523
+  _globals['_ROTATION']._serialized_start=525
+  _globals['_ROTATION']._serialized_end=618
+  _globals['_PROCESSORTYPE']._serialized_start=620
+  _globals['_PROCESSORTYPE']._serialized_end=662
+  _globals['_EXECUTECOMMANDREQUEST']._serialized_start=43
+  _globals['_EXECUTECOMMANDREQUEST']._serialized_end=314
+  _globals['_EXECUTECOMMANDRESPONSE']._serialized_start=316
+  _globals['_EXECUTECOMMANDRESPONSE']._serialized_end=391
+  _globals['_SERVERCOMMANDS']._serialized_start=664
+  _globals['_SERVERCOMMANDS']._serialized_end=779
 # @@protoc_insertion_point(module_scope)

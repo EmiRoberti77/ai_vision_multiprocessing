@@ -11,18 +11,57 @@ class Command(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     START: _ClassVar[Command]
     STOP: _ClassVar[Command]
     RESTART: _ClassVar[Command]
+
+class FrameOrientation(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    UNKNOWN_ORIENTATION: _ClassVar[FrameOrientation]
+    PORTRAIT: _ClassVar[FrameOrientation]
+    LANDSCAPE: _ClassVar[FrameOrientation]
+
+class Rotation(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    UNKNOWN_ROTATION: _ClassVar[Rotation]
+    ROTATE_0: _ClassVar[Rotation]
+    ROTATE_90: _ClassVar[Rotation]
+    ROTATE_180: _ClassVar[Rotation]
+    ROTATE_270: _ClassVar[Rotation]
+
+class ProcessorType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    ANY: _ClassVar[ProcessorType]
+    GPU: _ClassVar[ProcessorType]
+    CPU: _ClassVar[ProcessorType]
 UNKNOWN: Command
 START: Command
 STOP: Command
 RESTART: Command
+UNKNOWN_ORIENTATION: FrameOrientation
+PORTRAIT: FrameOrientation
+LANDSCAPE: FrameOrientation
+UNKNOWN_ROTATION: Rotation
+ROTATE_0: Rotation
+ROTATE_90: Rotation
+ROTATE_180: Rotation
+ROTATE_270: Rotation
+ANY: ProcessorType
+GPU: ProcessorType
+CPU: ProcessorType
 
 class ExecuteCommandRequest(_message.Message):
-    __slots__ = ("command", "url")
+    __slots__ = ("command", "call_back_url", "input_url", "frame_orientation", "rotation", "processor_type")
     COMMAND_FIELD_NUMBER: _ClassVar[int]
-    URL_FIELD_NUMBER: _ClassVar[int]
+    CALL_BACK_URL_FIELD_NUMBER: _ClassVar[int]
+    INPUT_URL_FIELD_NUMBER: _ClassVar[int]
+    FRAME_ORIENTATION_FIELD_NUMBER: _ClassVar[int]
+    ROTATION_FIELD_NUMBER: _ClassVar[int]
+    PROCESSOR_TYPE_FIELD_NUMBER: _ClassVar[int]
     command: Command
-    url: str
-    def __init__(self, command: _Optional[_Union[Command, str]] = ..., url: _Optional[str] = ...) -> None: ...
+    call_back_url: str
+    input_url: str
+    frame_orientation: FrameOrientation
+    rotation: Rotation
+    processor_type: ProcessorType
+    def __init__(self, command: _Optional[_Union[Command, str]] = ..., call_back_url: _Optional[str] = ..., input_url: _Optional[str] = ..., frame_orientation: _Optional[_Union[FrameOrientation, str]] = ..., rotation: _Optional[_Union[Rotation, str]] = ..., processor_type: _Optional[_Union[ProcessorType, str]] = ...) -> None: ...
 
 class ExecuteCommandResponse(_message.Message):
     __slots__ = ("success", "message")
