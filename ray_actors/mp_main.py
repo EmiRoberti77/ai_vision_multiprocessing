@@ -9,10 +9,15 @@ from typing import List, Dict, Tuple
 import torch
 from ultralytics import YOLO
 from ocr_processor import OCRProcessor
+import grpc
+from concurrent import futures
+from generated import server_commands_pb2_grpc as pb2_grpc
+from generated import server_commands_pb2 as pb2
+from grpc_command_serv import ServerCommand
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-
+print(f"{ROOT=}")
 
 def create_annotated_frame(model: YOLO, frame, dets, ocr_results, rotate_for_ocr: bool = False):
     annotated = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE) if rotate_for_ocr else frame.copy()
@@ -210,8 +215,18 @@ def main():
         p.join()
 
 
+def serve(port=50051):
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    pb2_grpc.add_ServerCommandsServicer_to_server(ServerCommand(), server)
+    server.add_insecure_port(f"[::]:{port}")
+    server.start()
+    print(f"gRPC server listening on port:{port}")
+    server.wait_for_termination()
+
+
 if __name__ == '__main__':
     mp.set_start_method('spawn', force=True)
-    main()
+    # main()
+    serve()
 
 
