@@ -186,7 +186,9 @@ def worker(rtsp_url: str, channel_name: str, model_path: str = 'yolo11m.pt'):
         print(f"[{channel_name}] Exiting worker")
 
 
-def main():
+def process():
+    mp.set_start_method('spawn', force=True)
+
     urls = [
         'rtsp://172.23.23.15:8554/mystream_4',
         'rtsp://172.23.23.15:8554/mystream_3'
@@ -213,20 +215,4 @@ def main():
 
     for p in procs:
         p.join()
-
-
-def serve(port=50051):
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    pb2_grpc.add_ServerCommandsServicer_to_server(ServerCommand(), server)
-    server.add_insecure_port(f"[::]:{port}")
-    server.start()
-    print(f"gRPC server listening on port:{port}")
-    server.wait_for_termination()
-
-
-if __name__ == '__main__':
-    mp.set_start_method('spawn', force=True)
-    # main()
-    serve()
-
 

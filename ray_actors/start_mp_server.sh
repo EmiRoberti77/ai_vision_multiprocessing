@@ -1,2 +1,2 @@
 echo "Starting server"
-python3 -m mp_main
+python3 -m grpc_command_serv
