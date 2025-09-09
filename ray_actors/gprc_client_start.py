@@ -13,8 +13,8 @@ def main(host:str='localhost', port:int=50051)->None:
                                         command=pb2.Command.START,
                                         call_back_url=_WEBHOOK,
                                         input_url=_INPUT,
-                                        frame_orientation=pb2.FrameOrientation.UNKNOWN_ORIENTATION,
-                                        rotation=pb2.UNKNOWN_ORIENTATION,
+                                        frame_orientation=pb2.FrameOrientation.PORTRAIT,
+                                        rotation=pb2.Rotation.ROTATE_90,
                                         processor_type=pb2.ProcessorType.GPU
                                     )   
 

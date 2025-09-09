@@ -1,3 +1,6 @@
+
+import grpc
+from concurrent import futures
 from generated import server_commands_pb2_grpc as pb2_grpc
 from generated import server_commands_pb2 as pb2
 
@@ -31,5 +34,29 @@ class ServerCommand(pb2_grpc.ServerCommandsServicer):
     
     def ExecuteCommand(self, request:pb2.ExecuteCommandRequest, context):
         success, message = self.validate_cmd(request)
-        return pb2.ExecuteCommandResponse(success=success, message=message)
+        if not success:
+            return pb2.ExecuteCommandResponse(success=success, message=message)
         
+        if request.command == pb2.Command.START:
+            message = f"starting server"
+            print(message)
+            
+        if request.command == pb2.Command.STOP:
+            message = f"stoppiny server"
+            print(message)
+
+        return pb2.ExecuteCommandResponse(success=success, message=message)
+
+
+
+def serve(port=50051):
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    pb2_grpc.add_ServerCommandsServicer_to_server(ServerCommand(), server)
+    server.add_insecure_port(f"[::]:{port}")
+    server.start()
+    print(f"gRPC server listening on port:{port}")
+    server.wait_for_termination()
+
+
+if __name__ == '__main__':
+    serve()
