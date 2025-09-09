@@ -1,5 +1,3 @@
-import grpc
-from concurrent import futures
 from generated import server_commands_pb2_grpc as pb2_grpc
 from generated import server_commands_pb2 as pb2
 
@@ -17,6 +15,15 @@ class ServerCommand(pb2_grpc.ServerCommandsServicer):
         if not request.call_back_url:
             valid=False
             message = 'invalid call_back_url'
+        if not request.frame_orientation:
+            valid=False
+            message = 'invalid frame orientation'
+        if not request.rotation:
+            valid=False
+            message = 'invalid rotation'
+        if not request.processor_type:
+            valid=False
+            message = 'invalid processor_type'
         
 
         return valid, message
