@@ -241,6 +241,7 @@ class DetectionManager():
         return True
 
 
+
 def process():
     urls = [
         'rtsp://172.23.23.15:8554/mystream_4',
@@ -256,7 +257,7 @@ def process():
     dm.stop("channel1")
 
 
-process()
+# process()
 
 
 
