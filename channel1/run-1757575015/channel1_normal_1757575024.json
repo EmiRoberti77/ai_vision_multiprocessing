@@ -1,0 +1,12 @@
+{
+  "timestamp": 1757575024,
+  "channel": "channel1",
+  "yolo_detections": 1,
+  "ocr_results": {
+    "text_count": 0,
+    "lot": "",
+    "expiry": "",
+    "full_text": "",
+    "lines": []
+  }
+}
