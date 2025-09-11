@@ -3,6 +3,7 @@ import grpc
 from concurrent import futures
 from generated import server_commands_pb2_grpc as pb2_grpc
 from generated import server_commands_pb2 as pb2
+#from video_processor import process as mp
 
 
 class ServerCommand(pb2_grpc.ServerCommandsServicer):
@@ -42,7 +43,7 @@ class ServerCommand(pb2_grpc.ServerCommandsServicer):
             print(message)
             
         if request.command == pb2.Command.STOP:
-            message = f"stoppiny server"
+            message = f"stopping server"
             print(message)
 
         return pb2.ExecuteCommandResponse(success=success, message=message)

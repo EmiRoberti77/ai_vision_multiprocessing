@@ -9,11 +9,6 @@ from typing import List, Dict, Tuple
 import torch
 from ultralytics import YOLO
 from ocr_processor import OCRProcessor
-import grpc
-from concurrent import futures
-from generated import server_commands_pb2_grpc as pb2_grpc
-from generated import server_commands_pb2 as pb2
-from grpc_command_serv import ServerCommand
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
