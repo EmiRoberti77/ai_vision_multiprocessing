@@ -3,16 +3,23 @@ import grpc
 from concurrent import futures
 from generated import server_commands_pb2_grpc as pb2_grpc
 from generated import server_commands_pb2 as pb2
-#from video_processor import process as mp
+from video_processor import DetectionManager as DM
 
 
 class ServerCommand(pb2_grpc.ServerCommandsServicer):
+    def __init__(self) -> None:
+        self.dm = DM()
+
+
     def validate_cmd(self, request:pb2.ExecuteCommandRequest)-> bool | str:
         valid=True
         message = 'success'
         if not request.command:
             valid=False
             message = 'invalid command'
+        if not request.name:
+            valid=False
+            message = 'invalid name'
         if not request.input_url:
             valid=False
             message = 'invalid input_url'
@@ -40,10 +47,18 @@ class ServerCommand(pb2_grpc.ServerCommandsServicer):
         
         if request.command == pb2.Command.START:
             message = f"starting server"
+            if self.dm.add(request.name, request.input_url):
+                print(f"Channel_added_to_DM_{request.name=}:{request.input_url}")
+                if self.dm.start(request.name):
+                    print(f"Channel_start_DM_{request.name=}")            
             print(message)
             
         if request.command == pb2.Command.STOP:
             message = f"stopping server"
+            if self.dm.stop(request.name):
+                print(f"Channel_stopped_to_DM_{request.name=}:{request.input_url}")
+                if self.dm.remove(request.name):
+                    print(f"Channel_remove_DM_{request.name=}")      
             print(message)
 
         return pb2.ExecuteCommandResponse(success=success, message=message)
@@ -56,7 +71,10 @@ def serve(port=50051):
     server.add_insecure_port(f"[::]:{port}")
     server.start()
     print(f"gRPC server listening on port:{port}")
-    server.wait_for_termination()
+    try:
+        server.wait_for_termination()
+    except KeyboardInterrupt:
+        print(f"exiting service")
 
 
 if __name__ == '__main__':
