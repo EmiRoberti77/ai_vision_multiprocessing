@@ -1,4 +1,6 @@
 
+from asyncio import BaseTransport
+from pickletools import read_uint1
 import grpc
 from concurrent import futures
 from generated import server_commands_pb2_grpc as pb2_grpc
@@ -11,32 +13,29 @@ class ServerCommand(pb2_grpc.ServerCommandsServicer):
         self.dm = DM()
 
 
-    def validate_cmd(self, request:pb2.ExecuteCommandRequest)-> bool | str:
+    def validate_cmd(self, request:pb2.ExecuteCommandRequest)-> tuple[bool, str]:
         valid=True
         message = 'success'
-        if not request.command:
-            valid=False
-            message = 'invalid command'
-        if not request.name:
-            valid=False
-            message = 'invalid name'
-        if not request.input_url:
-            valid=False
-            message = 'invalid input_url'
-        if not request.call_back_url:
-            valid=False
-            message = 'invalid call_back_url'
-        if not request.frame_orientation:
-            valid=False
-            message = 'invalid frame orientation'
-        if not request.rotation:
-            valid=False
-            message = 'invalid rotation'
-        if not request.processor_type:
-            valid=False
-            message = 'invalid processor_type'
-        
 
+        if not len(request.execute_commands):
+            return False, 'invalid execute_commands length'
+
+        for execute_command in request.execute_commands:
+            if not execute_command.command:
+                return False, 'invalid command'
+            if not execute_command.name:
+                return False, 'invalid name'
+            if not execute_command.input_url:
+                return False, 'invalid input_url'
+            if not execute_command.call_back_url:
+                return False, 'invalid call_back_url'
+            if not execute_command.frame_orientation:
+                return False, 'invalid frame orientation'
+            if not execute_command.rotation:
+                return False, 'invalid rotation'
+            if not execute_command.processor_type:
+                return False, 'invalid processor_type'
+            
         return valid, message
 
     
@@ -45,21 +44,22 @@ class ServerCommand(pb2_grpc.ServerCommandsServicer):
         if not success:
             return pb2.ExecuteCommandResponse(success=success, message=message)
         
-        if request.command == pb2.Command.START:
-            message = f"starting server"
-            if self.dm.add(request.name, request.input_url):
-                print(f"Channel_added_to_DM_{request.name=}:{request.input_url}")
-                if self.dm.start(request.name):
-                    print(f"Channel_start_DM_{request.name=}")            
-            print(message)
-            
-        if request.command == pb2.Command.STOP:
-            message = f"stopping server"
-            if self.dm.stop(request.name):
-                print(f"Channel_stopped_to_DM_{request.name=}:{request.input_url}")
-                if self.dm.remove(request.name):
-                    print(f"Channel_remove_DM_{request.name=}")      
-            print(message)
+        for excecute_cmd in request.execute_commands:
+            if excecute_cmd.command == pb2.Command.START: 
+                message = f"starting server"
+                if self.dm.add(excecute_cmd.name, excecute_cmd.input_url):
+                    print(f"Channel_added_to_DM_{excecute_cmd.name=}:{excecute_cmd.input_url}")
+                    if self.dm.start(excecute_cmd.name):
+                        print(f"Channel_start_DM_{excecute_cmd.name=}")            
+                print(excecute_cmd)
+                
+            if excecute_cmd.command == pb2.Command.STOP:
+                message = f"stopping server"
+                if self.dm.stop(excecute_cmd.name):
+                    print(f"Channel_stopped_to_DM_{excecute_cmd.name=}:{excecute_cmd.input_url}")
+                    if self.dm.remove(excecute_cmd.name):
+                        print(f"Channel_remove_DM_{excecute_cmd.name=}")      
+                print(excecute_cmd)
 
         return pb2.ExecuteCommandResponse(success=success, message=message)
 

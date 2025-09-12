@@ -1,6 +1,8 @@
+from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
+from collections.abc import Iterable as _Iterable, Mapping as _Mapping
 from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
@@ -47,7 +49,7 @@ ANY: ProcessorType
 GPU: ProcessorType
 CPU: ProcessorType
 
-class ExecuteCommandRequest(_message.Message):
+class ExecuteCommand(_message.Message):
     __slots__ = ("command", "name", "call_back_url", "input_url", "frame_orientation", "rotation", "processor_type")
     COMMAND_FIELD_NUMBER: _ClassVar[int]
     NAME_FIELD_NUMBER: _ClassVar[int]
@@ -64,6 +66,12 @@ class ExecuteCommandRequest(_message.Message):
     rotation: Rotation
     processor_type: ProcessorType
     def __init__(self, command: _Optional[_Union[Command, str]] = ..., name: _Optional[str] = ..., call_back_url: _Optional[str] = ..., input_url: _Optional[str] = ..., frame_orientation: _Optional[_Union[FrameOrientation, str]] = ..., rotation: _Optional[_Union[Rotation, str]] = ..., processor_type: _Optional[_Union[ProcessorType, str]] = ...) -> None: ...
+
+class ExecuteCommandRequest(_message.Message):
+    __slots__ = ("execute_commands",)
+    EXECUTE_COMMANDS_FIELD_NUMBER: _ClassVar[int]
+    execute_commands: _containers.RepeatedCompositeFieldContainer[ExecuteCommand]
+    def __init__(self, execute_commands: _Optional[_Iterable[_Union[ExecuteCommand, _Mapping]]] = ...) -> None: ...
 
 class ExecuteCommandResponse(_message.Message):
     __slots__ = ("success", "message")
