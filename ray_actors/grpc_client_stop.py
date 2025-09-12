@@ -1,0 +1,29 @@
+import grpc
+from generated import server_commands_pb2_grpc as pb2_grpc
+from generated import server_commands_pb2 as pb2
+
+_WEBHOOK = "http://localhost:8000/callback"
+_INPUT = "rtsp://127.23.23.15:8554/mystream_4"
+_NAME = "channel_1"
+
+
+def main(host: str = "localhost", port: int = 50051) -> None:
+    target = f"{host}:{port}"
+    with grpc.insecure_channel(target=target) as channel:
+        stub = pb2_grpc.ServerCommandsStub(channel=channel)
+        channel_1 = pb2.ExecuteCommand(
+            command=pb2.Command.STOP,
+            name=_NAME,
+            call_back_url=_WEBHOOK,
+            input_url=_INPUT,
+            frame_orientation=pb2.FrameOrientation.PORTRAIT,
+            rotation=pb2.Rotation.ROTATE_90,
+            processor_type=pb2.ProcessorType.GPU,
+        )
+        req = pb2.ExecuteCommandRequest(execute_commands=[channel_1])
+        resp = stub.ExecuteCommand(req)
+        print(resp)
+
+
+if __name__ == "__main__":
+    main()
