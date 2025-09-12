@@ -1,3 +1,4 @@
+from enum import Enum
 import os
 import cv2
 import time
@@ -5,6 +6,7 @@ import json
 import signal
 import threading
 from typing import List, Dict, Tuple
+from dataclasses import dataclass
 
 import torch
 from ultralytics import YOLO
@@ -14,10 +16,27 @@ from ocr_processor import OCRProcessor
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 print(f"{ROOT=}")
 
+class Detection_processor_type(Enum):
+    ANY = 1
+    CPU = 2
+    GPU = 3
+
+@dataclass
+class DetectionParams:
+    name:str
+    video_source:str
+    webhook_call_back_url:str
+    rotate_90_clock:bool
+    processor_type:Detection_processor_type
+
+
 class Detection():
-    def __init__(self, name:str, video_source:str) -> None:
-        self.name = name
-        self.video_source = video_source
+    def __init__(self, detection_params:DetectionParams) -> None:
+        self.name = detection_params.name
+        self.video_source = detection_params.video_source
+        self.webhook_callback = detection_params.webhook_call_back_url
+        self.rotate_90_clock = detection_params.rotate_90_clock
+        self.processor_type = detection_params.processor_type
         self._stop_event = threading.Event()
         self.running = False
 
@@ -172,7 +191,7 @@ class Detection():
                         ))
 
                 t1 = time.time()
-                ocr_results: Dict = ocr.process_frame(frame, rotate_iphone=True)
+                ocr_results: Dict = ocr.process_frame(frame, rotate_iphone=self.rotate_90_clock)
                 ocr_time = (time.time() - t1) * 1000
 
                 self.save_outputs(self.name, channel_run, frame, dets, ocr_results, model, ocr)
@@ -202,17 +221,17 @@ class DetectionManager():
         self.detections:Dict[str, Detection] = {}
         self.threads:Dict[str, threading.Thread] = {}
 
-    def add(self, name:str, video_source:str)->bool:
+    def add(self, detection_params:DetectionParams)->bool:
         with self._lock:
-            if name not in self.detections:
-                d = Detection(name=name, video_source=video_source)
+            if detection_params.name not in self.detections:
+                d = Detection(detection_params=detection_params)
                 t = threading.Thread(
                     target=d.start_worker,
                     args=(),
                     daemon=True
                 )
-                self.detections[name] = d
-                self.threads[name] = t
+                self.detections[detection_params.name] = d
+                self.threads[detection_params.name] = t
                 return True
 
         return False
