@@ -33,7 +33,7 @@ service ServerCommands {
   rpc ExecuteCommand(ExecuteCommandRequest) returns (ExecuteCommandResponse);
 }
 
-message ExecuteCommandRequest {
+message ExecuteCommand {
   Command command = 1;
   string name = 2;
   string call_back_url = 3;
@@ -41,6 +41,10 @@ message ExecuteCommandRequest {
   FrameOrientation frame_orientation = 5;
   Rotation rotation = 6;
   ProcessorType processor_type = 7;
+}
+
+message ExecuteCommandRequest {
+  repeated ExecuteCommand execute_commands = 1;
 }
 
 message ExecuteCommandResponse {
