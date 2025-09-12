@@ -203,43 +203,52 @@ class DetectionManager():
         self.threads:Dict[str, threading.Thread] = {}
 
     def add(self, name:str, video_source:str)->bool:
-        if name not in self.detections:
-            d = Detection(name=name, video_source=video_source)
-            t = threading.Thread(
-                target=d.start_worker,
-                args=(),
-                daemon=True
-            )
-            self.detections[name] = d
-            self.threads[name] = t
-            return True
+        with self._lock:
+            if name not in self.detections:
+                d = Detection(name=name, video_source=video_source)
+                t = threading.Thread(
+                    target=d.start_worker,
+                    args=(),
+                    daemon=True
+                )
+                self.detections[name] = d
+                self.threads[name] = t
+                return True
 
         return False
 
     
     def start(self, name:str)->bool:
-        if name in self.detections and name in self.threads:
-            t = self.threads[name]
-            t.start()
-            return True
-        
-        return False
-
-    
-    def stop(self, name:str)->bool: 
-        if name in self.detections and name in self.threads:
-            if self.detections[name].stop_worker():
-                print(f"DM:stop_worker:{name}")    
-                self.threads[name].join()
-                print(f"DM:thread_join:{name}")
+        with self._lock:
+            if name in self.detections and name in self.threads:
+                t = self.threads[name]
+                t.start()
                 return True
         
         return False
 
     
-    def remove(self, name:str)->bool:
-        return True
+    def stop(self, name:str)->bool:
+        with self._lock: 
+            if name in self.detections and name in self.threads:
+                if self.detections[name].stop_worker():
+                    print(f"DM:stop_worker:{name}")    
+                    self.threads[name].join()
+                    print(f"DM:thread_join:{name}")
+                    return True
+        
+        return False
 
+    
+    def remove(self, name:str)->bool:
+        with self._lock:
+            if name in self.detections and name in self.threads:
+                del self.detections[name]
+                del self.threads[name]
+                print(f"DM:removed:{name}")
+                return True
+        
+        return False
 
 
 def process():
