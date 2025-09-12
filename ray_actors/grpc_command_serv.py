@@ -1,17 +1,38 @@
-
-from asyncio import BaseTransport
-from pickletools import read_uint1
 import grpc
 from concurrent import futures
 from generated import server_commands_pb2_grpc as pb2_grpc
 from generated import server_commands_pb2 as pb2
 from video_processor import DetectionManager as DM
+from video_processor import Detection_processor_type, DetectionParams
 
 
 class ServerCommand(pb2_grpc.ServerCommandsServicer):
     def __init__(self) -> None:
         self.dm = DM()
+    
+    def fill_detection_params(
+        self,
+        excecute_command:pb2.ExecuteCommand,
+    ) -> DetectionParams:
 
+        if excecute_command.processor_type == pb2.ProcessorType.GPU:
+            det_process = Detection_processor_type.GPU
+        elif excecute_command.processor_type == pb2.ProcessorType.CPU:
+            det_process = Detection_processor_type.CPU
+        else:
+            det_process = Detection_processor_type.ANY
+
+        det_rotation = excecute_command.rotation == pb2.Rotation.ROTATE_90
+
+        detection_params = DetectionParams(
+            name=excecute_command.name,
+            video_source=excecute_command.input_url,
+            webhook_call_back_url=excecute_command.call_back_url,
+            rotate_90_clock=det_rotation,
+            processor_type=det_process,
+        )
+
+        return detection_params
 
     def validate_cmd(self, request:pb2.ExecuteCommandRequest)-> tuple[bool, str]:
         valid=True
@@ -47,7 +68,8 @@ class ServerCommand(pb2_grpc.ServerCommandsServicer):
         for excecute_cmd in request.execute_commands:
             if excecute_cmd.command == pb2.Command.START: 
                 message = f"starting server"
-                if self.dm.add(excecute_cmd.name, excecute_cmd.input_url):
+                dp = self.fill_detection_params(excecute_cmd)
+                if self.dm.add(dp):
                     print(f"Channel_added_to_DM_{excecute_cmd.name=}:{excecute_cmd.input_url}")
                     if self.dm.start(excecute_cmd.name):
                         print(f"Channel_start_DM_{excecute_cmd.name=}")            
