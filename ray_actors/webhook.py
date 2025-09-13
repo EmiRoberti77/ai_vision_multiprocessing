@@ -10,6 +10,7 @@ class WebhookFrame():
     cameraId:str
     lot:str
     expiry:str
+    all_text:str
     mime:str
     imageBase64:str
 
@@ -35,6 +36,7 @@ class Webhook:
             "lot":webhook_frame.lot,
             "expiry":webhook_frame.expiry,
             "mime":webhook_frame.mime,
+            "all_text":webhook_frame.all_text,
             "imageBase64":webhook_frame.imageBase64
         }
 
