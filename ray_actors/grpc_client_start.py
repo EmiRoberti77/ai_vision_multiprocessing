@@ -2,7 +2,7 @@ import grpc
 from generated import server_commands_pb2_grpc as pb2_grpc
 from generated import server_commands_pb2 as pb2
 
-_WEBHOOK = "http://localhost:8000/callback"
+_WEBHOOK = "http://192.168.1.188:3000/webhooks/camera"
 _INPUT = "rtsp://127.23.23.15:8554/mystream_4"
 _NAME = "channel_1"
 
