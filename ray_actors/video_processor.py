@@ -7,6 +7,7 @@ import signal
 import threading
 from typing import List, Dict, Tuple
 from dataclasses import dataclass
+from webhook import Webhook, WebhookFrame
 
 import torch
 from ultralytics import YOLO
@@ -38,6 +39,7 @@ class Detection():
         self.rotate_90_clock = detection_params.rotate_90_clock
         self.processor_type = detection_params.processor_type
         self._stop_event = threading.Event()
+        self.webhook = Webhook()
         self.running = False
 
     def create_annotated_frame(self, model: YOLO, frame, dets, ocr_results, rotate_for_ocr: bool = False):
@@ -195,9 +197,18 @@ class Detection():
                 ocr_time = (time.time() - t1) * 1000
 
                 self.save_outputs(self.name, channel_run, frame, dets, ocr_results, model, ocr)
-
-                if dets or ocr_results.get('text_count', 0) > 0:
-                    print(f"[{self.name}] YOLO={len(dets)} OCR={ocr_results.get('text_count', 0)} | YOLO={yolo_time:.1f}ms OCR={ocr_time:.1f}ms")
+                webhook_frame = WebhookFrame(
+                    cameraId=self.name,
+                    lot=ocr_results.get('lot'),
+                    expiry=ocr_results.get('expiry'),
+                    mime='detecton_data',
+                    imageBase64=self.webhook.to_base64(frame=self.webhook.resize_frame(frame), include_data_url=True)
+                )
+                if self.webhook.send_webhook(self.webhook_callback, webhook_frame):
+                    print(f"Success frame sent")
+                
+                # if dets or ocr_results.get('text_count', 0) > 0:
+                #     print(f"[{self.name}] YOLO={len(dets)} OCR={ocr_results.get('text_count', 0)} | YOLO={yolo_time:.1f}ms OCR={ocr_time:.1f}ms")
 
                 time.sleep(0.01)
         except KeyboardInterrupt:
