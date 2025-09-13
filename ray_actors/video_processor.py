@@ -203,6 +203,7 @@ class Detection():
                         cameraId=self.name,
                         lot=ocr_results.get('lot'),
                         expiry=ocr_results.get('expiry'),
+                        all_text=ocr_results.get('text'),
                         mime='detecton_data',
                         imageBase64=self.webhook.to_base64(frame=self.webhook.resize_frame(frame), include_data_url=True)
                     )   
