@@ -5,9 +5,10 @@ import time
 import json
 import signal
 import threading
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
 from webhook import Webhook, WebhookFrame
+import numpy as np
 
 import torch
 from ultralytics import YOLO
@@ -41,6 +42,16 @@ class Detection():
         self._stop_event = threading.Event()
         self.webhook = Webhook()
         self.running = False
+        # OCR gating: run OCR only when a detection is stable across frames
+        self.min_stable_frames = 5
+        self.iou_threshold = 0.6
+        self.min_area_ratio = 0.03  # require bbox to be at least 3% of frame area (tighter)
+        self.focus_laplacian_thresh = 120.0  # require ROI sharpness above this
+        self.ocr_cooldown_frames = 30  # run OCR at most once every N stable frames
+        self._cooldown_remaining = 0
+        self._last_roi_hash: Optional[int] = None
+        self._last_text_signature: Optional[str] = None
+        self._stable_target = None  # { 'bbox': [x1,y1,x2,y2], 'cls_id': int, 'count': int }
 
     def create_annotated_frame(self, model: YOLO, frame, dets, ocr_results, rotate_for_ocr: bool = False):
         annotated = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE) if rotate_for_ocr else frame.copy()
@@ -61,6 +72,102 @@ class Detection():
         annotated = OCRProcessor.draw_ocr_results(OCRProcessor, annotated, ocr_results) if False else annotated
         # Use instance method instead when available in worker
         return annotated
+
+
+    def _bbox_area(self, bbox):
+        x1, y1, x2, y2 = bbox
+        return max(0, x2 - x1) * max(0, y2 - y1)
+
+    def _iou(self, a, b):
+        ax1, ay1, ax2, ay2 = a
+        bx1, by1, bx2, by2 = b
+        inter_x1 = max(ax1, bx1)
+        inter_y1 = max(ay1, by1)
+        inter_x2 = min(ax2, bx2)
+        inter_y2 = min(ay2, by2)
+        inter_w = max(0, inter_x2 - inter_x1)
+        inter_h = max(0, inter_y2 - inter_y1)
+        inter_area = inter_w * inter_h
+        area_a = self._bbox_area(a)
+        area_b = self._bbox_area(b)
+        union = area_a + area_b - inter_area
+        if union <= 0:
+            return 0.0
+        return inter_area / union
+
+    def _update_stability(self, dets, frame_shape) -> bool:
+        """
+        Track the most confident detection and check if it stays in place
+        for at least self.min_stable_frames with IoU >= self.iou_threshold
+        and minimum area.
+        Returns True when stable, else False.
+        """
+        if not dets:
+            self._stable_target = None
+            self._cooldown_remaining = 0
+            return False
+
+        # Choose the highest confidence detection
+        best_det = max(dets, key=lambda d: d[2])  # (bbox, cls_id, conf)
+        bbox, cls_id, conf = best_det
+
+        # Filter by area to approximate "in focus"
+        h, w = frame_shape[:2]
+        if self._bbox_area(bbox) < self.min_area_ratio * (w * h):
+            self._stable_target = None
+            self._cooldown_remaining = 0
+            return False
+
+        if self._stable_target and self._stable_target.get('cls_id') == cls_id:
+            iou = self._iou(self._stable_target['bbox'], bbox)
+            if iou >= self.iou_threshold:
+                self._stable_target['count'] += 1
+                self._stable_target['bbox'] = bbox
+            else:
+                self._stable_target = { 'bbox': bbox, 'cls_id': cls_id, 'count': 1 }
+                self._cooldown_remaining = 0
+        else:
+            self._stable_target = { 'bbox': bbox, 'cls_id': cls_id, 'count': 1 }
+            self._cooldown_remaining = 0
+
+        return self._stable_target['count'] >= self.min_stable_frames
+
+    def _variance_of_laplacian(self, img: np.ndarray) -> float:
+        try:
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        except Exception:
+            gray = img
+        return float(cv2.Laplacian(gray, cv2.CV_64F).var())
+
+    def _crop_expand(self, frame: np.ndarray, bbox, margin_ratio: float = 0.15) -> np.ndarray:
+        h, w = frame.shape[:2]
+        x1, y1, x2, y2 = bbox
+        bw = max(1, x2 - x1)
+        bh = max(1, y2 - y1)
+        mx = int(bw * margin_ratio)
+        my = int(bh * margin_ratio)
+        cx1 = max(0, x1 - mx)
+        cy1 = max(0, y1 - my)
+        cx2 = min(w, x2 + mx)
+        cy2 = min(h, y2 + my)
+        return frame[cy1:cy2, cx1:cx2]
+
+    def _ahash(self, img: np.ndarray, size: int = 8) -> int:
+        if img is None or img.size == 0:
+            return 0
+        try:
+            small = cv2.resize(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), (size, size))
+        except Exception:
+            small = cv2.resize(img, (size, size))
+        avg = small.mean()
+        bits = (small > avg).flatten().astype(np.uint8)
+        hash_val = 0
+        for bit in bits:
+            hash_val = (hash_val << 1) | int(bit)
+        return int(hash_val)
+
+    def _hamming_distance(self, a: int, b: int) -> int:
+        return int(bin(a ^ b).count('1'))
 
 
     def save_outputs(self, channel_name: str, channel_run: str, frame, dets, ocr_results,
@@ -192,25 +299,71 @@ class Detection():
                             float(b.conf.item())
                         ))
 
-                t1 = time.time()
-                ocr_results: Dict = ocr.process_frame(frame, rotate_iphone=self.rotate_90_clock)
-                ocr_time = (time.time() - t1) * 1000
+                # Gate OCR by stability across frames to avoid over-processing
+                is_stable = self._update_stability(dets, frame.shape)
+                # Manage cooldown
+                if self._cooldown_remaining > 0:
+                    self._cooldown_remaining -= 1
+                do_ocr = is_stable and self._cooldown_remaining == 0
+
+                ocr_triggered = False
+                ocr_results: Dict = {
+                    'text': '',
+                    'lot': '',
+                    'expiry': '',
+                    'lines': [],
+                    'processing_time_ms': 0.0,
+                    'text_count': 0,
+                    'device': getattr(ocr, 'device', 'cpu')
+                }
+
+                # Decide whether to OCR based on focus and duplicates on ROI
+                if do_ocr and self._stable_target:
+                    roi = self._crop_expand(frame, self._stable_target['bbox'], margin_ratio=0.15)
+                    # Focus check
+                    focus_val = self._variance_of_laplacian(roi)
+                    # Duplicate ROI check using perceptual hash
+                    roi_hash = self._ahash(roi)
+                    is_duplicate_roi = (self._last_roi_hash is not None and self._hamming_distance(roi_hash, self._last_roi_hash) <= 2)
+
+                    if focus_val >= self.focus_laplacian_thresh and not is_duplicate_roi:
+                        t1 = time.time()
+                        # Run OCR on the ROI to reduce load and improve focus
+                        ocr_results = ocr.process_frame(roi, rotate_iphone=self.rotate_90_clock)
+                        ocr_time = (time.time() - t1) * 1000
+                        ocr_triggered = True
+                        self._last_roi_hash = roi_hash
+                        # Start cooldown regardless of OCR outcome to avoid hammering
+                        self._cooldown_remaining = self.ocr_cooldown_frames
+                    else:
+                        ocr_time = 0.0
+                        # Even if we skip OCR due to focus/duplicate, keep cooldown to prevent spamming
+                        self._cooldown_remaining = max(self._cooldown_remaining, int(self.ocr_cooldown_frames / 2))
+                else:
+                    ocr_time = 0.0
 
                 self.save_outputs(self.name, channel_run, frame, dets, ocr_results, model, ocr)
 
-                if dets or ocr_results.get('text_count', 0) > 0:
-                    webhook_frame = WebhookFrame(
-                        cameraId=self.name,
-                        lot=ocr_results.get('lot'),
-                        expiry=ocr_results.get('expiry'),
-                        all_text=ocr_results.get('text'),
-                        mime='detecton_data',
-                        imageBase64=self.webhook.to_base64(frame=self.webhook.resize_frame(frame), include_data_url=True)
-                    )   
-                    if self.webhook.send_webhook(self.webhook_callback, webhook_frame):
-                        print(f"Success frame sent")
-                    
-                    print(f"[{self.name}] YOLO={len(dets)} OCR={ocr_results.get('text_count', 0)} | YOLO={yolo_time:.1f}ms OCR={ocr_time:.1f}ms")
+                # Only send when OCR actually ran and produced some text, and text changed
+                sent = False
+                if ocr_triggered and ocr_results.get('text_count', 0) > 0:
+                    text_sig = f"{ocr_results.get('lot','')}|{ocr_results.get('expiry','')}|{ocr_results.get('text','')[:64]}"
+                    if self._last_text_signature != text_sig:
+                        webhook_frame = WebhookFrame(
+                            cameraId=self.name,
+                            lot=ocr_results.get('lot'),
+                            expiry=ocr_results.get('expiry'),
+                            all_text=ocr_results.get('text'),
+                            mime='detecton_data',
+                            imageBase64=self.webhook.to_base64(frame=self.webhook.resize_frame(frame), include_data_url=True)
+                        )
+                        if self.webhook.send_webhook(self.webhook_callback, webhook_frame):
+                            sent = True
+                            self._last_text_signature = text_sig
+                            print(f"Success frame sent")
+
+                stable_cnt = self._stable_target['count'] if self._stable_target else 0
+                print(f"[{self.name}] YOLO={len(dets)} OCR={ocr_results.get('text_count', 0)} | YOLO={yolo_time:.1f}ms OCR={ocr_time:.1f}ms | stable={stable_cnt}/{self.min_stable_frames} | ocr={'Y' if ocr_triggered else 'N'} | sent={'Y' if sent else 'N'} | cd={self._cooldown_remaining}")
 
                 time.sleep(0.01)
         except KeyboardInterrupt:
