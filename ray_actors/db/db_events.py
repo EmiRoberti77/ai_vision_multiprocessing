@@ -1,0 +1,24 @@
+from db_manager import SessionLocal, WebhookEvent
+import threading
+
+class OAIX_db_Event():
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+
+    def app_ocr_event(self, camera_name:str, all_text:str, lot:str=None, expiry:str=None, image_path:str=None):
+        with self.lock:
+            session = SessionLocal()
+            try:
+                ocr_event = WebhookEvent(
+                    camera_name=camera_name,
+                    all_text=all_text,
+                    lot=lot,
+                    expiry=expiry,
+                    image_path=image_path
+                ) 
+                session.add(ocr_event)
+                session.commit()
+            except:
+                print('OAIX_db_ocr_event:error')
+            finally:
+                session.close()
