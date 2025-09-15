@@ -3,10 +3,12 @@ import os
 import cv2
 import time
 import json
-import signal
+import sys
 import threading
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
+from app_base import AppBase
+from db.db_events import OAIX_db_Event
 from webhook import Webhook, WebhookFrame
 import numpy as np
 
@@ -16,7 +18,9 @@ from ocr_processor import OCRProcessor
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-print(f"{ROOT=}")
+if ROOT not in sys.path:
+    print(f'ROOT:append:{ROOT=}')
+    sys.path.append(ROOT)
 
 class Detection_processor_type(Enum):
     ANY = 1
@@ -361,6 +365,16 @@ class Detection():
                             sent = True
                             self._last_text_signature = text_sig
                             print(f"Success frame sent")
+                            # save event in the database
+                            oaix_db_event = OAIX_db_Event()
+                            oaix_db_event.app_ocr_event(
+                                camera_name=self.name,
+                                all_text=ocr_results.get('text'),
+                                lot=ocr_results.get('lot'),
+                                expiry=ocr_results.get('expiry'),
+                                image_path=ocr_results.get('ocr_image_path'),
+                                mime='OCR_EVENT'
+                            )
 
                 stable_cnt = self._stable_target['count'] if self._stable_target else 0
                 print(f"[{self.name}] YOLO={len(dets)} OCR={ocr_results.get('text_count', 0)} | YOLO={yolo_time:.1f}ms OCR={ocr_time:.1f}ms | stable={stable_cnt}/{self.min_stable_frames} | ocr={'Y' if ocr_triggered else 'N'} | sent={'Y' if sent else 'N'} | cd={self._cooldown_remaining}")

@@ -7,6 +7,8 @@ import time
 from datetime import datetime
 import re
 import os
+from app_base import AppBase
+from db.db_logger import LoggerLevel
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 try:
     from .ocr.common import clean_line, collapse_spaced_digits, find_lot_on_line, parse_expiry_from_text, has_exp_key
@@ -16,7 +18,7 @@ except Exception:
     except Exception:
         from ocr.common import clean_line, collapse_spaced_digits, find_lot_on_line, parse_expiry_from_text, has_exp_key
 
-class OCRProcessor:
+class OCRProcessor(AppBase):
     """
     GPU-accelerated OCR processor for Ray actors
     Optimized for RTX 5090 with CUDA support
@@ -28,6 +30,7 @@ class OCRProcessor:
         """
         self.gpu_requested = gpu
         self.gpu_available = False
+        self.channel_name = channel_name
         # Only check CUDA if explicitly requested; guard against failures
         if gpu:
             try:
@@ -42,7 +45,9 @@ class OCRProcessor:
         try:
             self.reader = easyocr.Reader(languages, gpu=self.gpu_available)
         except Exception as e:
-            print(f"EasyOCR init failed on {self.device}, falling back to CPU: {e}")
+            msg = f"EasyOCR:init failed on {self.device} for {self.channel_name}, falling back to CPU: {e}"
+            print()
+            self.db_logit(msg, LoggerLevel.ERROR)
             self.gpu_available = False
             self.device = "cpu"
             self.reader = easyocr.Reader(languages, gpu=False)
@@ -87,10 +92,12 @@ class OCRProcessor:
         try:
             success = cv2.imwrite(full_path, frame)
             if success:
-                print(f"OCR frame saved: {full_path}")
+                print(f"OCR frame saved: {full_path=}")
                 return full_path
             else:
-                print(f"Failed to save OCR frame: {full_path}")
+                msg = f"EasyOCR:Failed to save OCR {self.channel_name=} frame: {full_path=}"
+                print()
+                self.app_logger()    
                 return None
         except Exception as e:
             print(f"Error saving OCR frame: {e}")
@@ -239,7 +246,7 @@ class OCRProcessor:
             'processing_time_ms': processing_time,
             'text_count': len(text_lines),
             'device': self.device,
-            'ocr_image':ocr_image_path
+            'ocr_image_path':ocr_image_path
         }
     
     def draw_ocr_results(self, frame: np.ndarray, ocr_results: Dict) -> np.ndarray:
