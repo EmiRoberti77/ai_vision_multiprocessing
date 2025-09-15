@@ -263,7 +263,7 @@ class Detection():
             model.to(device)
         except Exception:
             device = 'cpu'
-        ocr = OCRProcessor(languages=['en'], gpu=(device == 'cuda'))
+        ocr = OCRProcessor(channel_name=self.name, languages=['en'], gpu=(device == 'cuda'))
 
         channel_run = f"run-{int(time.time())}"
         self.running = True
@@ -329,7 +329,7 @@ class Detection():
                     if focus_val >= self.focus_laplacian_thresh and not is_duplicate_roi:
                         t1 = time.time()
                         # Run OCR on the ROI to reduce load and improve focus
-                        ocr_results = ocr.process_frame(roi, rotate_iphone=self.rotate_90_clock)
+                        ocr_results = ocr.process_frame(roi, rotate_iphone=self.rotate_90_clock, save_frame=True)
                         ocr_time = (time.time() - t1) * 1000
                         ocr_triggered = True
                         self._last_roi_hash = roi_hash
