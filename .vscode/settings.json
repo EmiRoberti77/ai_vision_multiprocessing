@@ -1,0 +1,29 @@
+{
+    "terminal.integrated.profiles.linux": {
+        "AI Environment": {
+            "path": "/bin/bash",
+            "args": ["-c", "source ~/ai_env311/bin/activate && exec bash"]
+        },
+        "SERVER": {
+            "path": "/bin/bash",
+            "args": ["-c", "cd /mnt/c/code/AI_Vision/multiprocessing/ray_actors && exec bash"]
+        },
+        "CLIENT": {
+            "path": "/bin/bash",
+            "args": ["-c", "cd /mnt/c/code/AI_Vision/multiprocessing/ray_actors && exec bash"]
+        },
+        "GIT": {
+            "path": "/bin/bash",
+            "args": ["-c", "cd /mnt/c/code/AI_Vision/multiprocessing && exec bash"]
+        },
+        "DOCKER_STREAMER": {
+            "path": "/bin/bash",
+            "args": ["-c", "cd /mnt/c/code/AI_Vision/multiprocessing/rtsp_streamer && exec bash"]
+        },
+        "RTSP_STREAMER_4": {
+            "path": "/bin/bash",
+            "args": ["-c", "cd /mnt/c/code/AI_Vision/multiprocessing/rtsp_streamer && exec bash"]
+        }
+    },
+    "terminal.integrated.defaultProfile.linux": "AI Environment"
+}
