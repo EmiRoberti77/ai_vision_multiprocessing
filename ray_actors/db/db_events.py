@@ -1,7 +1,5 @@
 from db.db_manager import SessionLocal, WebhookEvent
 import threading
-import os
-import sys
 
 class OAIX_db_Event():
     def __init__(self) -> None:
