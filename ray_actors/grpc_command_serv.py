@@ -4,6 +4,7 @@ from concurrent import futures
 from generated import server_commands_pb2_grpc as pb2_grpc
 from generated import server_commands_pb2 as pb2
 from db.info_codes import InfoCode
+from db.error_codes import ErrorCode
 from video_processor import DetectionManager as DM
 from video_processor import Detection_processor_type, DetectionParams
 from db.db_logger import OAIX_db_Logger, LoggerLevel
