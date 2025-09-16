@@ -9,7 +9,7 @@ Base = declarative_base()
 class WebhookEvent(Base):
     __tablename__ = "webhook_events"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)    
     camera_name = Column(String, nullable=False)
     lot = Column(String, nullable=True)
     expiry = Column(String, nullable=True)
@@ -23,6 +23,7 @@ class AppLogger(Base):
     __tablename__ = "app_logs"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
+    log_code = Column(Integer, nullable=False, default=0)
     level = Column(String, nullable=False)
     message = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())

@@ -1,7 +1,9 @@
+from uu import Error
 import grpc
 from concurrent import futures
 from generated import server_commands_pb2_grpc as pb2_grpc
 from generated import server_commands_pb2 as pb2
+from db.info_codes import InfoCode
 from video_processor import DetectionManager as DM
 from video_processor import Detection_processor_type, DetectionParams
 from db.db_logger import OAIX_db_Logger, LoggerLevel
@@ -76,7 +78,7 @@ class ServerCommand(pb2_grpc.ServerCommandsServicer):
                     if self.dm.start(excecute_cmd.name):
                         msg = f"Channel_start_DM_{excecute_cmd.name=}"
                         print(msg)
-                        # self.db_logger(msg=msg)            
+                        self.db_logger.app_logger(InfoCode.SYSTEM_GRPC_START_SUCCESS, msg=msg)                            
                 print(excecute_cmd)
                 
             if excecute_cmd.command == pb2.Command.STOP:
@@ -84,7 +86,9 @@ class ServerCommand(pb2_grpc.ServerCommandsServicer):
                 if self.dm.stop(excecute_cmd.name):
                     print(f"Channel_stopped_to_DM_{excecute_cmd.name=}:{excecute_cmd.input_url}")
                     if self.dm.remove(excecute_cmd.name):
-                        print(f"Channel_remove_DM_{excecute_cmd.name=}")      
+                        msg = f"Channel_remove_DM_{excecute_cmd.name=}"
+                        print(msg)
+                        self.db_logger.app_logger(InfoCode.SYSTEM_GRPC_STOP_SUCCESS, msg=msg)
                 print(excecute_cmd)
 
         return pb2.ExecuteCommandResponse(success=success, message=message)
