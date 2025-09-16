@@ -143,7 +143,7 @@ class Detection():
             gray = img
         return float(cv2.Laplacian(gray, cv2.CV_64F).var())
 
-    def _crop_expand(self, frame: np.ndarray, bbox, margin_ratio: float = 0.15) -> np.ndarray:
+    def _crop_expand(self, frame: np.ndarray, bbox, margin_ratio: float = 0.25) -> np.ndarray:
         h, w = frame.shape[:2]
         x1, y1, x2, y2 = bbox
         bw = max(1, x2 - x1)
@@ -323,7 +323,7 @@ class Detection():
 
                 # Decide whether to OCR based on focus and duplicates on ROI
                 if do_ocr and self._stable_target:
-                    roi = self._crop_expand(frame, self._stable_target['bbox'], margin_ratio=0.15)
+                    roi = self._crop_expand(frame, self._stable_target['bbox'], margin_ratio=0.25)
                     # Focus check
                     focus_val = self._variance_of_laplacian(roi)
                     # Duplicate ROI check using perceptual hash
@@ -333,7 +333,31 @@ class Detection():
                     if focus_val >= self.focus_laplacian_thresh and not is_duplicate_roi:
                         t1 = time.time()
                         # Run OCR on the ROI to reduce load and improve focus
-                        ocr_results = ocr.process_frame(roi, rotate_iphone=self.rotate_90_clock, save_frame=True)
+                        # Run OCR on ROI and full frame; choose better based on parsed data + confidence
+                        ocr_roi = ocr.process_frame(roi, rotate_iphone=self.rotate_90_clock, save_frame=True)
+                        ocr_full = ocr.process_frame(frame, rotate_iphone=self.rotate_90_clock, save_frame=False)
+                        def score(res: Dict) -> float:
+                            base = float(res.get('text_count', 0))
+                            bonus = 0.0
+                            if res.get('lot'):
+                                bonus += 5.0
+                            if res.get('expiry'):
+                                bonus += 5.0
+                            # prefer ROI if same score
+                            return base + bonus
+                        # Choose best OCR result
+                        if score(ocr_roi) >= score(ocr_full):
+                            ocr_results = ocr_roi
+                        else:
+                            # Ensure full-frame result has a saved image for DB/webhook usage
+                            if not ocr_full.get('ocr_image_path') or ocr_full.get('ocr_image_path') == '_EMPTY':
+                                try:
+                                    saved_path = ocr.save_ocr_frame(frame)
+                                except Exception:
+                                    saved_path = None
+                                if saved_path:
+                                    ocr_full['ocr_image_path'] = saved_path
+                            ocr_results = ocr_full
                         ocr_time = (time.time() - t1) * 1000
                         ocr_triggered = True
                         self._last_roi_hash = roi_hash
@@ -346,6 +370,7 @@ class Detection():
                 else:
                     ocr_time = 0.0
 
+                # Save annotated outputs and select best frame for webhook
                 self.save_outputs(self.name, channel_run, frame, dets, ocr_results, model, ocr)
 
                 # Only send when OCR actually ran and produced some text, and text changed
@@ -353,13 +378,29 @@ class Detection():
                 if ocr_triggered and ocr_results.get('text_count', 0) > 0:
                     text_sig = f"{ocr_results.get('lot','')}|{ocr_results.get('expiry','')}|{ocr_results.get('text','')[:64]}"
                     if self._last_text_signature != text_sig:
+                        # Choose best image to send: prefer saved OCR frame if exists
+                        img_b64 = self.webhook.to_base64(
+                            frame=self.webhook.resize_frame(frame),
+                            include_data_url=True
+                        )
+                        if ocr_results.get('ocr_image_path'):
+                            try:
+                                ocr_img = cv2.imread(ocr_results.get('ocr_image_path'))
+                                if ocr_img is not None:
+                                    img_b64 = self.webhook.to_base64(
+                                        frame=self.webhook.resize_frame(ocr_img),
+                                        include_data_url=True
+                                    )
+                            except Exception:
+                                pass
+
                         webhook_frame = WebhookFrame(
                             cameraId=self.name,
                             lot=ocr_results.get('lot'),
                             expiry=ocr_results.get('expiry'),
                             all_text=ocr_results.get('text'),
                             mime='detecton_data',
-                            imageBase64=self.webhook.to_base64(frame=self.webhook.resize_frame(frame), include_data_url=True)
+                            imageBase64=img_b64
                         )
                         if self.webhook.send_webhook(self.webhook_callback, webhook_frame):
                             sent = True
