@@ -1,6 +1,4 @@
 from enum import IntEnum
-
-from torch import ErrorReport
 from .db_manager import SessionLocal, AppLogger
 from .error_codes import ErrorCode, ErrorSeverity, format_error_message
 from .error_codes import get_error_info

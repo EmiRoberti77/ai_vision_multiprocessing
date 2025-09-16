@@ -9,6 +9,7 @@ import re
 import os
 from app_base import AppBase
 from db.db_logger import LoggerLevel
+from ray_actors.db.error_codes import ErrorCode
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 try:
     from .ocr.common import clean_line, collapse_spaced_digits, find_lot_on_line, parse_expiry_from_text, has_exp_key
@@ -46,8 +47,8 @@ class OCRProcessor(AppBase):
             self.reader = easyocr.Reader(languages, gpu=self.gpu_available)
         except Exception as e:
             msg = f"EasyOCR:init failed on {self.device} for {self.channel_name}, falling back to CPU: {e}"
-            print()
-            self.db_logit(msg, LoggerLevel.ERROR)
+            print(msg)
+            self.app_logger.log_error(ErrorCode.OCR_ENGINE_FAILED, e)
             self.gpu_available = False
             self.device = "cpu"
             self.reader = easyocr.Reader(languages, gpu=False)
@@ -96,11 +97,13 @@ class OCRProcessor(AppBase):
                 return full_path
             else:
                 msg = f"EasyOCR:Failed to save OCR {self.channel_name=} frame: {full_path=}"
-                print()
-                self.app_logger()    
+                print(msg)
+                self.app_logger.log_error(ErrorCode.IMAGE_SAVE_FAILED, msg)
                 return None
         except Exception as e:
-            print(f"Error saving OCR frame: {e}")
+            meg = f"Error saving OCR frame: {e}"
+            print(msg)
+            self.app_logger.log_error(ErrorCode.OCR_ENGINE_FAILED, msg)
             return None
         
     def preprocess_image(self, bgr_image: np.ndarray, rotate_iphone: bool = True) -> np.ndarray:

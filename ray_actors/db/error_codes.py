@@ -67,6 +67,7 @@ class ErrorCode(IntEnum):
     OCR_TIMEOUT = 4009
     IMAGE_QUALITY_TOO_LOW = 4010
     ROTATION_DETECTION_FAILED = 4011
+    IMAGE_SAVE_FAILED = 4012
     
     # Database errors (5000-5999)
     DB_CONNECTION_FAILED = 5001
@@ -219,6 +220,13 @@ def get_error_info(error_code: ErrorCode) -> dict:
             "category": ErrorCategory.DATABASE,
             "severity": ErrorSeverity.CRITICAL,
             "description": "Database connection failed"
+        },
+
+        # Saving image to disk error
+        ErrorCode.IMAGE_SAVE_FAILED: {
+            "category": ErrorCategory.OCR,
+            "severity": ErrorSeverity.ERROR,
+            "description": "Saving image to disk error"
         },
         
         # Webhook errors
