@@ -101,7 +101,7 @@ class OCRProcessor(AppBase):
                 self.app_logger.log_error(ErrorCode.IMAGE_SAVE_FAILED, msg)
                 return None
         except Exception as e:
-            meg = f"Error saving OCR frame: {e}"
+            msg = f"Error saving OCR frame: {e}"
             print(msg)
             self.app_logger.log_error(ErrorCode.OCR_ENGINE_FAILED, msg)
             return None
