@@ -88,6 +88,9 @@ def display_image(image_path):
     if not image_path:
         st.warning("No image path provided")
         return
+    if image_path == "_EMPTY":
+        st.info("No saved OCR image for this event")
+        return
     
     try:
         # Handle both absolute and relative paths

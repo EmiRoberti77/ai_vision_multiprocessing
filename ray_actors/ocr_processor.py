@@ -213,28 +213,16 @@ class OCRProcessor(AppBase):
         # Join all text
         full_text = " ".join(all_text)
         
-        # Parse LOT and EXPIRY
-        lot = ""
-        expiry = ""
+        # Parse LOT and EXPIRY using robust spatial + lexical heuristics
+        try:
+            from ray_actors.ocr.text_parsing import parse_lot_and_expiry
+        except Exception:
+            try:
+                from .ocr.text_parsing import parse_lot_and_expiry
+            except Exception:
+                from ocr.text_parsing import parse_lot_and_expiry
 
-        # 1) Try to find LOT on any line with a lot key
-        for t_line in text_lines:
-            lot_candidate = find_lot_on_line(t_line["text"])
-            if lot_candidate:
-                lot = re.sub(r"[^A-Z0-9\-_]", "", lot_candidate)
-                break
-
-        # 2) Try to find expiry on lines that look like expiry
-        for t_line in text_lines:
-            if has_exp_key(t_line["text"]):
-                expiry = parse_expiry_from_text(t_line["text"])
-                if expiry:
-                    break
-
-        # 3) Fallback: look globally for a date if not found on keyed line
-        if not expiry:
-            up = clean_line(full_text)
-            expiry = parse_expiry_from_text(up)
+        lot, expiry = parse_lot_and_expiry(text_lines)
 
         ocr_image_path = self.save_ocr_frame(frame) if save_frame else "_EMPTY"
         
