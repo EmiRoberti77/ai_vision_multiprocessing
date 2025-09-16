@@ -9,7 +9,7 @@ import re
 import os
 from app_base import AppBase
 from db.db_logger import LoggerLevel
-from ray_actors.db.error_codes import ErrorCode
+from db.error_codes import ErrorCode
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 try:
     from .ocr.common import clean_line, collapse_spaced_digits, find_lot_on_line, parse_expiry_from_text, has_exp_key
