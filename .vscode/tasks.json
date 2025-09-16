@@ -1,0 +1,67 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Setup AI Environment",
+            "type": "shell",
+            "command": "source ~/ai_env311/bin/activate",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "panel": "new",
+                "group": "ai-env"
+            },
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        },
+        {
+            "label": "Start Main Process",
+            "type": "shell",
+            "command": "python3 -m multi_processing.main",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "panel": "new",
+                "group": "main"
+            },
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "dependsOn": "Setup AI Environment"
+        },
+        {
+            "label": "Run Tests",
+            "type": "shell",
+            "command": "python3 -m tests.test_process",
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "panel": "new",
+                "group": "testing"
+            },
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "dependsOn": "Setup AI Environment"
+        },
+        {
+            "label": "Database Terminal",
+            "type": "shell",
+            "command": "bash",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "panel": "new",
+                "group": "database"
+            },
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        }
+    ]
+}
