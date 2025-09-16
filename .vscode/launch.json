@@ -1,0 +1,32 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "AI Vision Main Process",
+            "type": "python",
+            "request": "launch",
+            "module": "multi_processing.main",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0,1"
+            }
+        },
+        {
+            "name": "Run Process Tests",
+            "type": "python",
+            "request": "launch",
+            "module": "tests.test_process",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Run Queue Tests",
+            "type": "python",
+            "request": "launch",
+            "module": "tests.test_queue_process",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

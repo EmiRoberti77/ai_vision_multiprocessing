@@ -4,7 +4,13 @@ import torch
 import easyocr
 from typing import Dict, List, Tuple, Optional
 import time
+from datetime import datetime
 import re
+import os
+from app_base import AppBase
+from db.db_logger import LoggerLevel
+from ray_actors.db.error_codes import ErrorCode
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 try:
     from .ocr.common import clean_line, collapse_spaced_digits, find_lot_on_line, parse_expiry_from_text, has_exp_key
 except Exception:
@@ -13,18 +19,19 @@ except Exception:
     except Exception:
         from ocr.common import clean_line, collapse_spaced_digits, find_lot_on_line, parse_expiry_from_text, has_exp_key
 
-class OCRProcessor:
+class OCRProcessor(AppBase):
     """
     GPU-accelerated OCR processor for Ray actors
     Optimized for RTX 5090 with CUDA support
     """
     
-    def __init__(self, languages: List[str] = ['en'], gpu: bool = True):
+    def __init__(self, channel_name:str, languages: List[str] = ['en'], gpu: bool = True):
         """
         Initialize OCR processor with optional GPU support (safe fallback to CPU)
         """
         self.gpu_requested = gpu
         self.gpu_available = False
+        self.channel_name = channel_name
         # Only check CUDA if explicitly requested; guard against failures
         if gpu:
             try:
@@ -39,7 +46,9 @@ class OCRProcessor:
         try:
             self.reader = easyocr.Reader(languages, gpu=self.gpu_available)
         except Exception as e:
-            print(f"EasyOCR init failed on {self.device}, falling back to CPU: {e}")
+            msg = f"EasyOCR:init failed on {self.device} for {self.channel_name}, falling back to CPU: {e}"
+            print(msg)
+            self.app_logger.log_error(ErrorCode.OCR_ENGINE_FAILED, e)
             self.gpu_available = False
             self.device = "cpu"
             self.reader = easyocr.Reader(languages, gpu=False)
@@ -57,6 +66,45 @@ class OCRProcessor:
         # OCR processing parameters
         self.min_confidence = 0.35
         self.max_text_length = 100
+
+    def save_ocr_frame(self, frame: np.ndarray) -> str:        
+        # Get current timestamp
+        now = datetime.now()
+        timestamp = int(time.time())
+        
+        # Create directory structure: ROOT/ocr/year/month/day/hour/
+        ocr_dir = os.path.join(
+            ROOT, 
+            "ocr", 
+            str(now.year), 
+            f"{now.month:02d}", 
+            f"{now.day:02d}", 
+            f"{now.hour:02d}"
+        )
+        
+        # Create directories if they don't exist
+        os.makedirs(ocr_dir, exist_ok=True)
+        
+        # Generate filename with timestamp and microseconds for uniqueness
+        filename = f"ocr_frame_{timestamp}_{now.microsecond:06d}.jpg"
+        full_path = os.path.join(ocr_dir, filename)
+        
+        # Save the frame as JPEG
+        try:
+            success = cv2.imwrite(full_path, frame)
+            if success:
+                print(f"OCR frame saved: {full_path=}")
+                return full_path
+            else:
+                msg = f"EasyOCR:Failed to save OCR {self.channel_name=} frame: {full_path=}"
+                print(msg)
+                self.app_logger.log_error(ErrorCode.IMAGE_SAVE_FAILED, msg)
+                return None
+        except Exception as e:
+            msg = f"Error saving OCR frame: {e}"
+            print(msg)
+            self.app_logger.log_error(ErrorCode.OCR_ENGINE_FAILED, msg)
+            return None
         
     def preprocess_image(self, bgr_image: np.ndarray, rotate_iphone: bool = True) -> np.ndarray:
         """
@@ -135,7 +183,7 @@ class OCRProcessor:
             print(f"OCR extraction error: {e}")
             return []
     
-    def process_frame(self, frame: np.ndarray, rotate_iphone: bool = True) -> Dict:
+    def process_frame(self, frame: np.ndarray, rotate_iphone: bool = True, save_frame = True) -> Dict:
         """
         Process frame and extract OCR information
         
@@ -168,28 +216,18 @@ class OCRProcessor:
         # Join all text
         full_text = " ".join(all_text)
         
-        # Parse LOT and EXPIRY
-        lot = ""
-        expiry = ""
+        # Parse LOT and EXPIRY using robust spatial + lexical heuristics
+        try:
+            from ray_actors.ocr.text_parsing import parse_lot_and_expiry
+        except Exception:
+            try:
+                from .ocr.text_parsing import parse_lot_and_expiry
+            except Exception:
+                from ocr.text_parsing import parse_lot_and_expiry
 
-        # 1) Try to find LOT on any line with a lot key
-        for t_line in text_lines:
-            lot_candidate = find_lot_on_line(t_line["text"])
-            if lot_candidate:
-                lot = re.sub(r"[^A-Z0-9\-_]", "", lot_candidate)
-                break
+        lot, expiry = parse_lot_and_expiry(text_lines)
 
-        # 2) Try to find expiry on lines that look like expiry
-        for t_line in text_lines:
-            if has_exp_key(t_line["text"]):
-                expiry = parse_expiry_from_text(t_line["text"])
-                if expiry:
-                    break
-
-        # 3) Fallback: look globally for a date if not found on keyed line
-        if not expiry:
-            up = clean_line(full_text)
-            expiry = parse_expiry_from_text(up)
+        ocr_image_path = self.save_ocr_frame(frame) if save_frame else "_EMPTY"
         
         return {
             'text': full_text,
@@ -198,7 +236,8 @@ class OCRProcessor:
             'lines': text_lines,
             'processing_time_ms': processing_time,
             'text_count': len(text_lines),
-            'device': self.device
+            'device': self.device,
+            'ocr_image_path':ocr_image_path
         }
     
     def draw_ocr_results(self, frame: np.ndarray, ocr_results: Dict) -> np.ndarray:
