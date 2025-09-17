@@ -14,7 +14,21 @@ import numpy as np
 
 import torch
 from ultralytics import YOLO
-from ocr_processor import OCRProcessor
+# Prefer PaddleOCR-based processor with safe fallback to EasyOCR implementation
+try:
+    from ocr_processor_padle import OCRProcessor  # local module name
+    OCR_IMPL = 'paddle'
+except Exception:
+    try:
+        from ray_actors.ocr_processor_padle import OCRProcessor  # package form
+        OCR_IMPL = 'paddle'
+    except Exception:
+        try:
+            from ocr_processor import OCRProcessor  # local EasyOCR
+            OCR_IMPL = 'easyocr'
+        except Exception:
+            from ray_actors.ocr_processor import OCRProcessor  # package EasyOCR
+            OCR_IMPL = 'easyocr'
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -175,7 +189,7 @@ class Detection():
 
 
     def save_outputs(self, channel_name: str, channel_run: str, frame, dets, ocr_results,
-        model: YOLO, ocr: OCRProcessor):
+        model: YOLO, ocr):
         timestamp = int(time.time())
         save_dir = os.path.join(ROOT, channel_name, channel_run)
         os.makedirs(save_dir, exist_ok=True)
@@ -267,7 +281,20 @@ class Detection():
             model.to(device)
         except Exception:
             device = 'cpu'
-        ocr = OCRProcessor(channel_name=self.name, languages=['en'], gpu=(device == 'cuda'))
+        # Initialize OCR with runtime fallback if Paddle backend is present but not installed
+        try:
+            ocr = OCRProcessor(channel_name=self.name, languages=['en'], gpu=(device == 'cuda'))
+        except Exception as e:
+            print(f"[{self.name}] Primary OCR init failed ({e}), falling back to EasyOCR backend")
+            try:
+                try:
+                    from ocr_processor import OCRProcessor as EasyOCRProcessor
+                except Exception:
+                    from ray_actors.ocr_processor import OCRProcessor as EasyOCRProcessor
+                ocr = EasyOCRProcessor(channel_name=self.name, languages=['en'], gpu=(device == 'cuda'))
+            except Exception as e2:
+                print(f"[{self.name}] EasyOCR fallback also failed: {e2}")
+                raise
 
         channel_run = f"run-{int(time.time())}"
         self.running = True
