@@ -63,6 +63,8 @@ class ServerCommand(pb2_grpc.ServerCommandsServicer):
                 return False, 'invalid rotation'
             if not execute_command.processor_type:
                 return False, 'invalid processor_type'
+            if not execute_command.model_name:
+                return False, 'invalid model_name'
             
         return valid, message
 
