@@ -24,27 +24,27 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x15server_commands.proto\x12\x0fserver_commands\"\x96\x02\n\x0e\x45xecuteCommand\x12)\n\x07\x63ommand\x18\x01 \x01(\x0e\x32\x18.server_commands.Command\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x15\n\rcall_back_url\x18\x03 \x01(\t\x12\x11\n\tinput_url\x18\x04 \x01(\t\x12<\n\x11\x66rame_orientation\x18\x05 \x01(\x0e\x32!.server_commands.FrameOrientation\x12+\n\x08rotation\x18\x06 \x01(\x0e\x32\x19.server_commands.Rotation\x12\x36\n\x0eprocessor_type\x18\x07 \x01(\x0e\x32\x1e.server_commands.ProcessorType\"R\n\x15\x45xecuteCommandRequest\x12\x39\n\x10\x65xecute_commands\x18\x01 \x03(\x0b\x32\x1f.server_commands.ExecuteCommand\"K\n\x16\x45xecuteCommandResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x14\n\x07message\x18\x02 \x01(\tH\x00\x88\x01\x01\x42\n\n\x08_message*8\n\x07\x43ommand\x12\x0b\n\x07UNKNOWN\x10\x00\x12\t\n\x05START\x10\x01\x12\x08\n\x04STOP\x10\x02\x12\x0b\n\x07RESTART\x10\x03*H\n\x10\x46rameOrientation\x12\x17\n\x13UNKNOWN_ORIENTATION\x10\x00\x12\x0c\n\x08PORTRAIT\x10\x01\x12\r\n\tLANDSCAPE\x10\x02*]\n\x08Rotation\x12\x14\n\x10UNKNOWN_ROTATION\x10\x00\x12\x0c\n\x08ROTATE_0\x10\x01\x12\r\n\tROTATE_90\x10\x02\x12\x0e\n\nROTATE_180\x10\x03\x12\x0e\n\nROTATE_270\x10\x04**\n\rProcessorType\x12\x07\n\x03\x41NY\x10\x00\x12\x07\n\x03GPU\x10\x01\x12\x07\n\x03\x43PU\x10\x02\x32s\n\x0eServerCommands\x12\x61\n\x0e\x45xecuteCommand\x12&.server_commands.ExecuteCommandRequest\x1a\'.server_commands.ExecuteCommandResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x15server_commands.proto\x12\x0fserver_commands\"\xaa\x02\n\x0e\x45xecuteCommand\x12)\n\x07\x63ommand\x18\x01 \x01(\x0e\x32\x18.server_commands.Command\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x15\n\rcall_back_url\x18\x03 \x01(\t\x12\x11\n\tinput_url\x18\x04 \x01(\t\x12<\n\x11\x66rame_orientation\x18\x05 \x01(\x0e\x32!.server_commands.FrameOrientation\x12+\n\x08rotation\x18\x06 \x01(\x0e\x32\x19.server_commands.Rotation\x12\x36\n\x0eprocessor_type\x18\x07 \x01(\x0e\x32\x1e.server_commands.ProcessorType\x12\x12\n\nmodel_name\x18\x08 \x01(\t\"R\n\x15\x45xecuteCommandRequest\x12\x39\n\x10\x65xecute_commands\x18\x01 \x03(\x0b\x32\x1f.server_commands.ExecuteCommand\"K\n\x16\x45xecuteCommandResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x14\n\x07message\x18\x02 \x01(\tH\x00\x88\x01\x01\x42\n\n\x08_message*8\n\x07\x43ommand\x12\x0b\n\x07UNKNOWN\x10\x00\x12\t\n\x05START\x10\x01\x12\x08\n\x04STOP\x10\x02\x12\x0b\n\x07RESTART\x10\x03*H\n\x10\x46rameOrientation\x12\x17\n\x13UNKNOWN_ORIENTATION\x10\x00\x12\x0c\n\x08PORTRAIT\x10\x01\x12\r\n\tLANDSCAPE\x10\x02*]\n\x08Rotation\x12\x14\n\x10UNKNOWN_ROTATION\x10\x00\x12\x0c\n\x08ROTATE_0\x10\x01\x12\r\n\tROTATE_90\x10\x02\x12\x0e\n\nROTATE_180\x10\x03\x12\x0e\n\nROTATE_270\x10\x04**\n\rProcessorType\x12\x07\n\x03\x41NY\x10\x00\x12\x07\n\x03GPU\x10\x01\x12\x07\n\x03\x43PU\x10\x02\x32s\n\x0eServerCommands\x12\x61\n\x0e\x45xecuteCommand\x12&.server_commands.ExecuteCommandRequest\x1a\'.server_commands.ExecuteCommandResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'server_commands_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_COMMAND']._serialized_start=484
-  _globals['_COMMAND']._serialized_end=540
-  _globals['_FRAMEORIENTATION']._serialized_start=542
-  _globals['_FRAMEORIENTATION']._serialized_end=614
-  _globals['_ROTATION']._serialized_start=616
-  _globals['_ROTATION']._serialized_end=709
-  _globals['_PROCESSORTYPE']._serialized_start=711
-  _globals['_PROCESSORTYPE']._serialized_end=753
+  _globals['_COMMAND']._serialized_start=504
+  _globals['_COMMAND']._serialized_end=560
+  _globals['_FRAMEORIENTATION']._serialized_start=562
+  _globals['_FRAMEORIENTATION']._serialized_end=634
+  _globals['_ROTATION']._serialized_start=636
+  _globals['_ROTATION']._serialized_end=729
+  _globals['_PROCESSORTYPE']._serialized_start=731
+  _globals['_PROCESSORTYPE']._serialized_end=773
   _globals['_EXECUTECOMMAND']._serialized_start=43
-  _globals['_EXECUTECOMMAND']._serialized_end=321
-  _globals['_EXECUTECOMMANDREQUEST']._serialized_start=323
-  _globals['_EXECUTECOMMANDREQUEST']._serialized_end=405
-  _globals['_EXECUTECOMMANDRESPONSE']._serialized_start=407
-  _globals['_EXECUTECOMMANDRESPONSE']._serialized_end=482
-  _globals['_SERVERCOMMANDS']._serialized_start=755
-  _globals['_SERVERCOMMANDS']._serialized_end=870
+  _globals['_EXECUTECOMMAND']._serialized_end=341
+  _globals['_EXECUTECOMMANDREQUEST']._serialized_start=343
+  _globals['_EXECUTECOMMANDREQUEST']._serialized_end=425
+  _globals['_EXECUTECOMMANDRESPONSE']._serialized_start=427
+  _globals['_EXECUTECOMMANDRESPONSE']._serialized_end=502
+  _globals['_SERVERCOMMANDS']._serialized_start=775
+  _globals['_SERVERCOMMANDS']._serialized_end=890
 # @@protoc_insertion_point(module_scope)
