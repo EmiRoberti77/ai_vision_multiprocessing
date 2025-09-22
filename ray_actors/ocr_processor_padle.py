@@ -1,13 +1,14 @@
 import os
 import time
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import cv2
 import numpy as np
 
 from app_base import AppBase
 from db.error_codes import ErrorCode
+from db.db_logger import OAIX_db_Logger
 
 # PaddleOCR imports with graceful fallback
 try:
@@ -17,20 +18,13 @@ except Exception as e:  # pragma: no cover - import-time guard for environments 
     PaddleOCR = None
     paddle = None
 
-
-try:
-    from .ocr.text_parsing import parse_lot_and_expiry
-except Exception:
-    try:
-        from ray_actors.ocr.text_parsing import parse_lot_and_expiry
-    except Exception:
-        from ocr.text_parsing import parse_lot_and_expiry
+from ocr.text_parsing import parse_lot_and_expiry
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 
-class OCRProcessor(AppBase):
+class OCRProcessorPaddle(AppBase):
     """
     PaddleOCR-based OCR processor with the same public API as the EasyOCR version.
     - Accepts the same constructor signature
@@ -130,11 +124,12 @@ class OCRProcessor(AppBase):
             self.app_logger.log_error(ErrorCode.IMAGE_SAVE_FAILED, msg)
             return None
 
-    def preprocess_image(self, bgr_image: np.ndarray, rotate_90_clock: bool = True) -> np.ndarray:
+    def preprocess_image(self, bgr_image: np.ndarray, rotate_iphone: bool = True) -> np.ndarray:
         if bgr_image is None or getattr(bgr_image, 'size', 0) == 0:
+            self.app_logger.log_error(ErrorCode.OCR_PROCESS_IMAGE_FAILED, f"process_image()-bgr_image=None-channel={self.channel_name}", "image covertion error")
             return bgr_image
         img = bgr_image
-        if rotate_90_clock:
+        if rotate_iphone:
             img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
         h, w = img.shape[:2]
         if max(h, w) < 320:
@@ -143,11 +138,25 @@ class OCRProcessor(AppBase):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
         enhanced = clahe.apply(gray)
-        return cv2.cvtColor(enhanced, cv2.COLOR_GRAY2BGR)
+        img = cv2.cvtColor(enhanced, cv2.COLOR_GRAY2BGR)
+        now = datetime.now()
+        try:
+            cv2.imwrite(
+                f"ocr_process_image-{now.year:02d}{now.month:02d}-{now.day:02d}-{now.hour:02d}-{now.minute:02d}-{now.second:02d}-{now.microsecond:02d}.jpg",
+                img
+            )
+        except Exception:
+            pass
+        return img
 
-    def extract_text(self, bgr_image: np.ndarray, detail: int = 1, rotate_iphone: bool = True) -> List[Tuple]:
+    def extract_text(self, bgr_image: np.ndarray, detail: int = 1, rotate_iphone: bool = True) -> Tuple[List[Tuple], np.ndarray]:
+        """
+        Returns a tuple of (ocr_tuples, processed_frame), where ocr_tuples is a list of
+        (bbox, text, confidence) and processed_frame is the preprocessed image used for OCR.
+        """
         if bgr_image is None or getattr(bgr_image, 'size', 0) == 0:
-            return []
+            print(f"WARN:extract frame no zise")
+            return [], bgr_image
 
         processed = self.preprocess_image(bgr_image, rotate_iphone=rotate_iphone)
 
@@ -155,8 +164,9 @@ class OCRProcessor(AppBase):
         try:
             results = self.reader.ocr(processed, cls=True)
         except Exception as e:
-            print(f"PaddleOCR extraction error: {e}")
-            return []
+            self.app_logger.log_error(ErrorCode.OCR_ENGINE_FAILED, str(e))
+            print(f"ERROR:PaddleOCR extraction error: {e}")
+            return [], processed
 
         # results is a list per image; for ndarray input it's typically a nested list
         # Normalize into list of (bbox, text, confidence)
@@ -197,13 +207,23 @@ class OCRProcessor(AppBase):
                         normalized.append((bbox, text.strip(), conf))
         except Exception as e:
             print(f"PaddleOCR normalization error: {e}")
-            return []
+            return [], processed
 
-        return normalized
+        return normalized, processed
 
-    def process_frame(self, frame: np.ndarray, rotate_iphone: bool = True, save_frame = True) -> Dict:
+    def process_frame(self, frame: np.ndarray, rotate_90_clock: bool = True, save_frame = True) -> Dict:
         t0 = time.time()
-        ocr_results = self.extract_text(frame, detail=1, rotate_iphone=rotate_iphone)
+        print(f"process_frame {rotate_90_clock=}")
+        print(f"++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+        ocr_out = self.extract_text(frame, detail=1, rotate_iphone=rotate_90_clock)
+        ocr_results, processed_frame = ocr_out
+        print(f"++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+        # Backward/defensive handling: support either list-only or (list, processed_frame)
+        # if isinstance(ocr_out, tuple) and len(ocr_out) == 2:
+        #     ocr_results, processed_frame = ocr_out
+        # else:
+        #     ocr_results = ocr_out  # type: ignore[assignment]
+        #     processed_frame = self.preprocess_image(frame, rotate_iphone=rotate_iphone)
         proc_ms = (time.time() - t0) * 1000.0
 
         text_lines: List[Dict] = []
@@ -220,7 +240,7 @@ class OCRProcessor(AppBase):
 
         lot, expiry = parse_lot_and_expiry(text_lines)
 
-        ocr_image_path = self.save_ocr_frame(frame) if save_frame else "_EMPTY"
+        ocr_image_path = self.save_ocr_frame(processed_frame) if save_frame else "_EMPTY"
 
         return {
             'text': full_text,
