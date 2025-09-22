@@ -101,7 +101,7 @@ def display_image(image_path):
             
         if os.path.exists(full_path):
             image = Image.open(full_path)
-            st.image(image, caption=f"Detection Image: {os.path.basename(full_path)}", use_container_width=True)
+            st.image(image, caption=f"Detection Image: {os.path.basename(full_path)}", width='stretch')
         else:
             st.error(f"Image not found: {full_path}")
             st.info(f"Looking for: {full_path}")
@@ -316,7 +316,7 @@ def main():
     col1, col2, col3 = st.columns([1, 1, 1])
     
     with col2:
-        if st.button("🔄 Refresh Data", use_container_width=True):
+        if st.button("🔄 Refresh Data", width='stretch'):
             st.cache_data.clear()
             st.rerun()
     
