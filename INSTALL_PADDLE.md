@@ -9,6 +9,8 @@ pip install -r requirements_paddle_gpu.txt --no-cache-dir
 
 3) Install the correct PaddlePaddle GPU wheel for CUDA 12.x:
 
+- for the RTX5090 on WSL use this -- python3 -m pip install --pre paddlepaddle-gpu -i https://www.paddlepaddle.org.cn/packages/nightly/-cu128/
+
 - Find wheels: see `https://www.paddlepaddle.org.cn/install/quick` and pick Linux, Pip, CUDA 12.x
 - Example (CUDA 12.0+):
 

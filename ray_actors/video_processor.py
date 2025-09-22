@@ -48,6 +48,7 @@ class DetectionParams:
     webhook_call_back_url:str
     rotate_90_clock:bool
     processor_type:Detection_processor_type
+    model_name:str
 
 
 class Detection():
@@ -57,6 +58,7 @@ class Detection():
         self.webhook_callback = detection_params.webhook_call_back_url
         self.rotate_90_clock = detection_params.rotate_90_clock
         self.processor_type = detection_params.processor_type
+        self.model_path = detection_params.model_name
         self._stop_event = threading.Event()
         self.webhook = Webhook()
         self.running = False
@@ -70,6 +72,29 @@ class Detection():
         self._last_roi_hash: Optional[int] = None
         self._last_text_signature: Optional[str] = None
         self._stable_target = None  # { 'bbox': [x1,y1,x2,y2], 'cls_id': int, 'count': int }
+        self.print_start_settings()
+
+
+    def print_start_settings(self):
+        print(f"[{self.name}] Startup settings:")
+        try:
+            proc_type = self.processor_type.name if isinstance(self.processor_type, Detection_processor_type) else str(self.processor_type)
+        except Exception:
+            proc_type = str(self.processor_type)
+        settings = {
+            "video_source": self.video_source,
+            "webhook_callback": self.webhook_callback,
+            "rotate_90_clock": self.rotate_90_clock,
+            "processor_type": proc_type,
+            "model_path": self.model_path,
+            "min_stable_frames": self.min_stable_frames,
+            "iou_threshold": self.iou_threshold,
+            "min_area_ratio": self.min_area_ratio,
+            "focus_laplacian_thresh": self.focus_laplacian_thresh,
+            "ocr_cooldown_frames": self.ocr_cooldown_frames,
+        }
+        for k, v in settings.items():
+            print(f"  {k}: {v}")
 
     def create_annotated_frame(self, model: YOLO, frame, dets, ocr_results, rotate_for_ocr: bool = False):
         annotated = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE) if rotate_for_ocr else frame.copy()
@@ -246,7 +271,7 @@ class Detection():
                 json.dump({**json_payload, "frame_type": "ocr_rotated"}, f, indent=2)
 
 
-    def start_worker(self, model_path: str = 'yolo11m.pt'):
+    def start_worker(self):
         # Reduce OpenCV logs
         try:
             cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_ERROR)
@@ -276,7 +301,7 @@ class Detection():
         device = 'cuda' if use_cuda else 'cpu'
 
         # Models
-        model = YOLO(model_path)
+        model = YOLO(self.model_path)
         try:
             model.to(device)
         except Exception:

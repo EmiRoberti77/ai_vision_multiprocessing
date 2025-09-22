@@ -1,4 +1,4 @@
-from uu import Error
+import os
 import grpc
 from concurrent import futures
 from generated import server_commands_pb2_grpc as pb2_grpc
@@ -9,6 +9,7 @@ from video_processor import DetectionManager as DM
 from video_processor import Detection_processor_type, DetectionParams
 from db.db_logger import OAIX_db_Logger, LoggerLevel
 
+MODEL_ROOT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), 'models'))
 
 class ServerCommand(pb2_grpc.ServerCommandsServicer):
     def __init__(self) -> None:
@@ -35,6 +36,7 @@ class ServerCommand(pb2_grpc.ServerCommandsServicer):
             webhook_call_back_url=excecute_command.call_back_url,
             rotate_90_clock=det_rotation,
             processor_type=det_process,
+            model_name=os.path.join(MODEL_ROOT_PATH, excecute_command.model_name)
         )
 
         return detection_params
