@@ -41,6 +41,7 @@ message ExecuteCommand {
   FrameOrientation frame_orientation = 5;
   Rotation rotation = 6;
   ProcessorType processor_type = 7;
+  string model_name = 8;
 }
 
 message ExecuteCommandRequest {

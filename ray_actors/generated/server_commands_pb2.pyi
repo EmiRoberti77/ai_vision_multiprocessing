@@ -50,7 +50,7 @@ GPU: ProcessorType
 CPU: ProcessorType
 
 class ExecuteCommand(_message.Message):
-    __slots__ = ("command", "name", "call_back_url", "input_url", "frame_orientation", "rotation", "processor_type")
+    __slots__ = ("command", "name", "call_back_url", "input_url", "frame_orientation", "rotation", "processor_type", "model_name")
     COMMAND_FIELD_NUMBER: _ClassVar[int]
     NAME_FIELD_NUMBER: _ClassVar[int]
     CALL_BACK_URL_FIELD_NUMBER: _ClassVar[int]
@@ -58,6 +58,7 @@ class ExecuteCommand(_message.Message):
     FRAME_ORIENTATION_FIELD_NUMBER: _ClassVar[int]
     ROTATION_FIELD_NUMBER: _ClassVar[int]
     PROCESSOR_TYPE_FIELD_NUMBER: _ClassVar[int]
+    MODEL_NAME_FIELD_NUMBER: _ClassVar[int]
     command: Command
     name: str
     call_back_url: str
@@ -65,7 +66,8 @@ class ExecuteCommand(_message.Message):
     frame_orientation: FrameOrientation
     rotation: Rotation
     processor_type: ProcessorType
-    def __init__(self, command: _Optional[_Union[Command, str]] = ..., name: _Optional[str] = ..., call_back_url: _Optional[str] = ..., input_url: _Optional[str] = ..., frame_orientation: _Optional[_Union[FrameOrientation, str]] = ..., rotation: _Optional[_Union[Rotation, str]] = ..., processor_type: _Optional[_Union[ProcessorType, str]] = ...) -> None: ...
+    model_name: str
+    def __init__(self, command: _Optional[_Union[Command, str]] = ..., name: _Optional[str] = ..., call_back_url: _Optional[str] = ..., input_url: _Optional[str] = ..., frame_orientation: _Optional[_Union[FrameOrientation, str]] = ..., rotation: _Optional[_Union[Rotation, str]] = ..., processor_type: _Optional[_Union[ProcessorType, str]] = ..., model_name: _Optional[str] = ...) -> None: ...
 
 class ExecuteCommandRequest(_message.Message):
     __slots__ = ("execute_commands",)
