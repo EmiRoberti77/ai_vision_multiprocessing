@@ -12,6 +12,7 @@ _INPUT = "rtsp://127.23.23.15:8554/mystream_4"
 _NAME = "channel_1"
 _MODEL_NAME = models.get("model_oaix_box")
 
+print('START_COMMAND')
 print(f"{_WEBHOOK=}")
 print(f"{_INPUT=}")
 print(f"{_NAME=}")
