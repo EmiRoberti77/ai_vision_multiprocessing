@@ -14,24 +14,10 @@ import numpy as np
 
 import torch
 from ultralytics import YOLO
-# Prefer PaddleOCR-based processor with safe fallback to EasyOCR implementation
-try:
-    from ocr_processor_padle import OCRProcessor  # local module name
-    OCR_IMPL = 'paddle'
-except Exception:
-    try:
-        from ray_actors.ocr_processor_padle import OCRProcessor  # package form
-        OCR_IMPL = 'paddle'
-    except Exception:
-        try:
-            from ocr_processor import OCRProcessor  # local EasyOCR
-            OCR_IMPL = 'easyocr'
-        except Exception:
-            from ray_actors.ocr_processor import OCRProcessor  # package EasyOCR
-            OCR_IMPL = 'easyocr'
-
+from ocr_processor_padle import OCRProcessorPaddle
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
 if ROOT not in sys.path:
     print(f'ROOT:append:{ROOT=}')
     sys.path.append(ROOT)
@@ -95,27 +81,6 @@ class Detection():
         }
         for k, v in settings.items():
             print(f"  {k}: {v}")
-
-    def create_annotated_frame(self, model: YOLO, frame, dets, ocr_results, rotate_for_ocr: bool = False):
-        annotated = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE) if rotate_for_ocr else frame.copy()
-
-        # Draw YOLO boxes only on non-rotated frame
-        if not rotate_for_ocr:
-            for bbox, cls_id, conf in dets:
-                x1, y1, x2, y2 = bbox
-                cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                if hasattr(model, 'names') and cls_id in getattr(model, 'names', {}):
-                    label = model.names[cls_id]
-                else:
-                    label = str(cls_id)
-                cv2.putText(annotated, f"{label} {conf:.2f}", (x1, y1 - 10),
-                            cv2.FONT_HERSHEY_PLAIN, 0.9, (0, 255, 0), 2)
-
-        # Draw OCR results (handles both rotated and non-rotated)
-        annotated = OCRProcessor.draw_ocr_results(OCRProcessor, annotated, ocr_results) if False else annotated
-        # Use instance method instead when available in worker
-        return annotated
-
 
     def _bbox_area(self, bbox):
         x1, y1, x2, y2 = bbox
@@ -306,20 +271,10 @@ class Detection():
             model.to(device)
         except Exception:
             device = 'cpu'
-        # Initialize OCR with runtime fallback if Paddle backend is present but not installed
-        try:
-            ocr = OCRProcessor(channel_name=self.name, languages=['en'], gpu=(device == 'cuda'))
-        except Exception as e:
-            print(f"[{self.name}] Primary OCR init failed ({e}), falling back to EasyOCR backend")
-            try:
-                try:
-                    from ocr_processor import OCRProcessor as EasyOCRProcessor
-                except Exception:
-                    from ray_actors.ocr_processor import OCRProcessor as EasyOCRProcessor
-                ocr = EasyOCRProcessor(channel_name=self.name, languages=['en'], gpu=(device == 'cuda'))
-            except Exception as e2:
-                print(f"[{self.name}] EasyOCR fallback also failed: {e2}")
-                raise
+        
+        # Initialize OCR with runtime fallback if Paddle backend is present but not installed:
+        ocr = OCRProcessorPaddle(channel_name=self.name, languages=['en'], gpu=(device == 'cuda'))
+        
 
         channel_run = f"run-{int(time.time())}"
         self.running = True
@@ -470,7 +425,7 @@ class Detection():
                             )
 
                 stable_cnt = self._stable_target['count'] if self._stable_target else 0
-                print(f"[{self.name}] YOLO={len(dets)} OCR={ocr_results.get('text_count', 0)} | YOLO={yolo_time:.1f}ms OCR={ocr_time:.1f}ms | stable={stable_cnt}/{self.min_stable_frames} | ocr={'Y' if ocr_triggered else 'N'} | sent={'Y' if sent else 'N'} | cd={self._cooldown_remaining}")
+                # print(f"[{self.name}] YOLO={len(dets)} OCR={ocr_results.get('text_count', 0)} | YOLO={yolo_time:.1f}ms OCR={ocr_time:.1f}ms | stable={stable_cnt}/{self.min_stable_frames} | ocr={'Y' if ocr_triggered else 'N'} | sent={'Y' if sent else 'N'} | cd={self._cooldown_remaining}")
 
                 time.sleep(0.01)
         except KeyboardInterrupt:
