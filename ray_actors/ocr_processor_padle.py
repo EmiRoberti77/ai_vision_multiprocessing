@@ -128,12 +128,15 @@ class OCRProcessorPaddle(AppBase):
             self.app_logger.log_error(ErrorCode.OCR_PROCESS_IMAGE_FAILED, f"process_image()-bgr_image=None-channel={self.channel_name}", "image covertion error")
             return bgr_image
         img = bgr_image
+
         if rotate_iphone:
             img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+        
         h, w = img.shape[:2]
         if max(h, w) < 320:
             scale = 1.5
             img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_CUBIC)
+        
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
         enhanced = clahe.apply(gray)

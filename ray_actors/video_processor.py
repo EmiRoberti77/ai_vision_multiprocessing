@@ -14,7 +14,7 @@ import numpy as np
 
 import torch
 from ultralytics import YOLO
-from ocr_processor_padle import OCRProcessorPaddle
+from ocr_processor import OCRProcessor
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -273,7 +273,7 @@ class Detection():
             device = 'cpu'
         
         # Initialize OCR with runtime fallback if Paddle backend is present but not installed:
-        ocr = OCRProcessorPaddle(channel_name=self.name, languages=['en'], gpu=(device == 'cuda'))
+        ocr = OCRProcessor(channel_name=self.name, languages=['en'], gpu=(device == 'cuda'))
         
 
         channel_run = f"run-{int(time.time())}"
@@ -340,31 +340,8 @@ class Detection():
                     if focus_val >= self.focus_laplacian_thresh and not is_duplicate_roi:
                         t1 = time.time()
                         # Run OCR on the ROI to reduce load and improve focus
-                        # Run OCR on ROI and full frame; choose better based on parsed data + confidence
-                        ocr_roi = ocr.process_frame(roi, rotate_iphone=self.rotate_90_clock, save_frame=True)
-                        ocr_full = ocr.process_frame(frame, rotate_iphone=self.rotate_90_clock, save_frame=False)
-                        def score(res: Dict) -> float:
-                            base = float(res.get('text_count', 0))
-                            bonus = 0.0
-                            if res.get('lot'):
-                                bonus += 5.0
-                            if res.get('expiry'):
-                                bonus += 5.0
-                            # prefer ROI if same score
-                            return base + bonus
-                        # Choose best OCR result
-                        if score(ocr_roi) >= score(ocr_full):
-                            ocr_results = ocr_roi
-                        else:
-                            # Ensure full-frame result has a saved image for DB/webhook usage
-                            if not ocr_full.get('ocr_image_path') or ocr_full.get('ocr_image_path') == '_EMPTY':
-                                try:
-                                    saved_path = ocr.save_ocr_frame(frame)
-                                except Exception:
-                                    saved_path = None
-                                if saved_path:
-                                    ocr_full['ocr_image_path'] = saved_path
-                            ocr_results = ocr_full
+                        ocr_roi = ocr.process_frame(roi, rotate_90_clock=self.rotate_90_clock, save_frame=True)
+                        ocr_results = ocr_roi
                         ocr_time = (time.time() - t1) * 1000
                         ocr_triggered = True
                         self._last_roi_hash = roi_hash
