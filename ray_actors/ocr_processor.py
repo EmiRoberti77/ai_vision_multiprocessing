@@ -106,22 +106,13 @@ class OCRProcessor(AppBase):
             self.app_logger.log_error(ErrorCode.OCR_ENGINE_FAILED, msg)
             return None
         
-    def preprocess_image(self, bgr_image: np.ndarray, rotate_iphone: bool = True) -> np.ndarray:
-        """
-        Preprocess image for better OCR results
-        
-        Args:
-            bgr_image: Input BGR image
-            rotate_iphone: Whether to rotate image 90 degrees clockwise for iPhone frames
-            
-        Returns:
-            Preprocessed image
-        """
+    def preprocess_image(self, bgr_image: np.ndarray, rotate_90_clock: bool = True, save_ocr_images: bool = True) -> np.ndarray:
+
         if bgr_image is None or bgr_image.size == 0:
             return bgr_image
         
         # Rotate iPhone frames 90 degrees clockwise
-        if rotate_iphone:
+        if rotate_90_clock:
             bgr_image = cv2.rotate(bgr_image, cv2.ROTATE_90_CLOCKWISE)
             
         h, w = bgr_image.shape[:2]
@@ -137,11 +128,29 @@ class OCRProcessor(AppBase):
         gray = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2GRAY)
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
         enhanced = clahe.apply(gray)
+
         
-        # Convert back to BGR
+        if save_ocr_images:
+            try:
+                # save images to disk for debugging
+                now = datetime.now()
+                ocr_run_dir=os.path.join(ROOT, 'ocr_run_process_image', self.channel_name, f"{now.year:02d}-{now.month:02d}-{now.day:02d}-{now.hour:02d}")
+                os.makedirs(ocr_run_dir, exist_ok=True)
+                cv2.imwrite(
+                    os.path.join(ocr_run_dir,f"ocr_proc_img_original-{now.hour:02d}-{now.minute:02d}-{now.second:02d}-{now.microsecond:02d}.jpg"),
+                    bgr_image
+                )
+                cv2.imwrite(
+                    os.path.join(ocr_run_dir, f"ocr_proc_img_enhanced-{now.hour:02d}-{now.minute:02d}-{now.second:02d}-{now.microsecond:02d}.jpg"),
+                    gray
+                )
+            except Exception as e:
+                self.app_logger.log_error(ErrorCode.OCR_PROCESS_IMAGE_FAILED, str(e), self.channel_name)
+        
         return cv2.cvtColor(enhanced, cv2.COLOR_GRAY2BGR)
+
     
-    def extract_text(self, bgr_image: np.ndarray, detail: int = 1, rotate_iphone: bool = True) -> List[Tuple]:
+    def extract_text(self, bgr_image: np.ndarray, detail: int = 1, rotate_90_clock: bool = True) -> List[Tuple]:
         """
         Extract text from image using EasyOCR
         
@@ -154,17 +163,15 @@ class OCRProcessor(AppBase):
             List of (bbox, text, confidence) tuples
         """
         if bgr_image is None or bgr_image.size == 0:
+            self.app_logger.log_error(ErrorCode.INVALID_OCR_IMAGE_SIZE, 'Invalid image ssice - extract_text', self.channel_name)
             return []
         
         # Preprocess image with iPhone rotation
-        processed = self.preprocess_image(bgr_image, rotate_iphone=rotate_iphone)
-        
-        # Convert BGR to RGB for EasyOCR
-        rgb_image = cv2.cvtColor(processed, cv2.COLOR_BGR2RGB)
+        processed = self.preprocess_image(bgr_image, rotate_90_clock=rotate_90_clock)
         
         try:
             # Perform OCR
-            results = self.reader.readtext(rgb_image, detail=detail, paragraph=False)
+            results = self.reader.readtext(processed, detail=detail, paragraph=False)
             
             # Filter results by confidence
             filtered_results = []
@@ -183,7 +190,7 @@ class OCRProcessor(AppBase):
             print(f"OCR extraction error: {e}")
             return []
     
-    def process_frame(self, frame: np.ndarray, rotate_iphone: bool = True, save_frame = True) -> Dict:
+    def process_frame(self, frame: np.ndarray, rotate_90_clock: bool = True, save_frame = True) -> Dict:
         """
         Process frame and extract OCR information
         
@@ -197,7 +204,7 @@ class OCRProcessor(AppBase):
         start_time = time.time()
         
         # Extract text with bounding boxes and iPhone rotation
-        ocr_results = self.extract_text(frame, detail=1, rotate_iphone=rotate_iphone)
+        ocr_results = self.extract_text(frame, detail=1, rotate_90_clock=rotate_90_clock)
         
         processing_time = (time.time() - start_time) * 1000  # Convert to ms
         
@@ -226,6 +233,9 @@ class OCRProcessor(AppBase):
                 from ocr.text_parsing import parse_lot_and_expiry
 
         lot, expiry = parse_lot_and_expiry(text_lines)
+
+        if rotate_90_clock:
+            frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
 
         ocr_image_path = self.save_ocr_frame(frame) if save_frame else "_EMPTY"
         
