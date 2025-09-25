@@ -8,7 +8,6 @@ import numpy as np
 
 from app_base import AppBase
 from db.error_codes import ErrorCode
-from db.db_logger import OAIX_db_Logger
 
 # PaddleOCR imports with graceful fallback
 try:
