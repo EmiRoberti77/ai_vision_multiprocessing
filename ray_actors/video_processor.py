@@ -185,55 +185,16 @@ class Detection():
         os.makedirs(save_dir, exist_ok=True)
 
         # Normal annotated frame
-        normal_frame = frame.copy()
-        for bbox, cls_id, conf in dets:
-            x1, y1, x2, y2 = bbox
-            cv2.rectangle(normal_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            label = model.names[cls_id] if hasattr(model, 'names') else str(cls_id)
-            cv2.putText(normal_frame, f"{label} {conf:.2f}", (x1, y1 - 10),
-                        cv2.FONT_HERSHEY_PLAIN, 0.9, (0, 255, 0), 2)
-        normal_frame = ocr.draw_ocr_results(normal_frame, ocr_results)
-        normal_path = os.path.join(save_dir, f"{channel_name}_normal_{timestamp}.jpg")
-        cv2.imwrite(normal_path, normal_frame)
-
-        # Build JSON-safe OCR payload (avoid numpy types)
-        safe_lines = []
-        for line in ocr_results.get('lines', []):
-            bbox = line.get('bbox', [])
-            # bbox may be list of lists or numpy arrays; coerce to ints
-            try:
-                bbox_py = [[int(pt[0]), int(pt[1])] for pt in bbox]
-            except Exception:
-                bbox_py = []
-            safe_lines.append({
-                "text": str(line.get('text', '')),
-                "confidence": float(line.get('confidence', 0.0)),
-                "bbox": bbox_py
-            })
-
-        json_payload = {
-            "timestamp": int(timestamp),
-            "channel": str(channel_name),
-            "yolo_detections": int(len(dets)),
-            "ocr_results": {
-                "text_count": int(ocr_results.get('text_count', 0) or 0),
-                "lot": str(ocr_results.get('lot', '')),
-                "expiry": str(ocr_results.get('expiry', '')),
-                "full_text": str(ocr_results.get('text', '')),
-                "lines": safe_lines
-            }
-        }
-        with open(os.path.join(save_dir, f"{channel_name}_normal_{timestamp}.json"), 'w') as f:
-            json.dump(json_payload, f, indent=2)
-
-        # Rotated OCR frame only if any text was found
-        if ocr_results.get('text_count', 0) > 0:
-            rotated = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
-            rotated = ocr.draw_ocr_results(rotated, ocr_results)
-            rotated_path = os.path.join(save_dir, f"{channel_name}_ocr_{timestamp}.jpg")
-            cv2.imwrite(rotated_path, rotated)
-            with open(os.path.join(save_dir, f"{channel_name}_ocr_{timestamp}.json"), 'w') as f:
-                json.dump({**json_payload, "frame_type": "ocr_rotated"}, f, indent=2)
+        # normal_frame = frame.copy()
+        # for bbox, cls_id, conf in dets:
+        #     x1, y1, x2, y2 = bbox
+        #     cv2.rectangle(normal_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        #     label = model.names[cls_id] if hasattr(model, 'names') else str(cls_id)
+        #     cv2.putText(normal_frame, f"{label} {conf:.2f}", (x1, y1 - 10), cv2.FONT_HERSHEY_PLAIN, 0.9, (0, 255, 0), 2)
+        
+        ocr_frame = ocr.draw_ocr_results(frame, ocr_results)
+        ocr_path = os.path.join(save_dir, f"{channel_name}_ocr_{timestamp}.jpg")
+        cv2.imwrite(ocr_path, ocr_frame)
 
 
     def start_worker(self):
@@ -330,7 +291,7 @@ class Detection():
 
                 # Decide whether to OCR based on focus and duplicates on ROI
                 if do_ocr and self._stable_target:
-                    roi = self._crop_expand(frame, self._stable_target['bbox'], margin_ratio=0.25)
+                    roi = self._crop_expand(frame, self._stable_target['bbox'], margin_ratio=0.3)
                     # Focus check
                     focus_val = self._variance_of_laplacian(roi)
                     # Duplicate ROI check using perceptual hash
@@ -346,6 +307,7 @@ class Detection():
                         ocr_triggered = True
                         self._last_roi_hash = roi_hash
                         # Start cooldown regardless of OCR outcome to avoid hammering
+                        self.save_outputs(self.name, channel_run, roi, dets, ocr_results, model, ocr)
                         self._cooldown_remaining = self.ocr_cooldown_frames
                     else:
                         ocr_time = 0.0
@@ -355,7 +317,7 @@ class Detection():
                     ocr_time = 0.0
 
                 # Save annotated outputs and select best frame for webhook
-                self.save_outputs(self.name, channel_run, frame, dets, ocr_results, model, ocr)
+                # self.save_outputs(self.name, channel_run, frame, dets, ocr_results, model, ocr)
 
                 # Only send when OCR actually ran and produced some text, and text changed
                 sent = False
