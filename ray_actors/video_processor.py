@@ -196,44 +196,41 @@ class Detection():
         normal_path = os.path.join(save_dir, f"{channel_name}_normal_{timestamp}.jpg")
         cv2.imwrite(normal_path, normal_frame)
 
-        # Build JSON-safe OCR payload (avoid numpy types)
-        safe_lines = []
-        for line in ocr_results.get('lines', []):
-            bbox = line.get('bbox', [])
-            # bbox may be list of lists or numpy arrays; coerce to ints
-            try:
-                bbox_py = [[int(pt[0]), int(pt[1])] for pt in bbox]
-            except Exception:
-                bbox_py = []
-            safe_lines.append({
-                "text": str(line.get('text', '')),
-                "confidence": float(line.get('confidence', 0.0)),
-                "bbox": bbox_py
-            })
+        # # Build JSON-safe OCR payload (avoid numpy types)
+        # safe_lines = []
+        # for line in ocr_results.get('lines', []):
+        #     bbox = line.get('bbox', [])
+        #     # bbox may be list of lists or numpy arrays; coerce to ints
+        #     try:
+        #         bbox_py = [[int(pt[0]), int(pt[1])] for pt in bbox]
+        #     except Exception:
+        #         bbox_py = []
+        #     safe_lines.append({
+        #         "text": str(line.get('text', '')),
+        #         "confidence": float(line.get('confidence', 0.0)),
+        #         "bbox": bbox_py
+        #     })
 
-        json_payload = {
-            "timestamp": int(timestamp),
-            "channel": str(channel_name),
-            "yolo_detections": int(len(dets)),
-            "ocr_results": {
-                "text_count": int(ocr_results.get('text_count', 0) or 0),
-                "lot": str(ocr_results.get('lot', '')),
-                "expiry": str(ocr_results.get('expiry', '')),
-                "full_text": str(ocr_results.get('text', '')),
-                "lines": safe_lines
-            }
-        }
-        with open(os.path.join(save_dir, f"{channel_name}_normal_{timestamp}.json"), 'w') as f:
-            json.dump(json_payload, f, indent=2)
+        # json_payload = {
+        #     "timestamp": int(timestamp),
+        #     "channel": str(channel_name),
+        #     "yolo_detections": int(len(dets)),
+        #     "ocr_results": {
+        #         "text_count": int(ocr_results.get('text_count', 0) or 0),
+        #         "lot": str(ocr_results.get('lot', '')),
+        #         "expiry": str(ocr_results.get('expiry', '')),
+        #         "full_text": str(ocr_results.get('text', '')),
+        #         "lines": safe_lines
+        #     }
+        # }
+        # with open(os.path.join(save_dir, f"{channel_name}_normal_{timestamp}.json"), 'w') as f:
+        #     json.dump(json_payload, f, indent=2)
 
-        # Rotated OCR frame only if any text was found
-        if ocr_results.get('text_count', 0) > 0:
-            rotated = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
-            rotated = ocr.draw_ocr_results(rotated, ocr_results)
-            rotated_path = os.path.join(save_dir, f"{channel_name}_ocr_{timestamp}.jpg")
-            cv2.imwrite(rotated_path, rotated)
-            with open(os.path.join(save_dir, f"{channel_name}_ocr_{timestamp}.json"), 'w') as f:
-                json.dump({**json_payload, "frame_type": "ocr_rotated"}, f, indent=2)
+        # rotated = ocr.draw_ocr_results(rotated, ocr_results)
+        # ocr_frame_path = os.path.join(save_dir, f"{channel_name}_ocr_{timestamp}.jpg")
+        # cv2.imwrite(ocr_frame_path, rotated)
+        # with open(os.path.join(save_dir, f"{channel_name}_ocr_{timestamp}.json"), 'w') as f:
+        #     json.dump({**json_payload, "frame_type": "ocr_frame"}, f, indent=2)
 
 
     def start_worker(self):
