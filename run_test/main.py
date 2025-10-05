@@ -44,11 +44,8 @@ def main():
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 1)
         cv2.putText(frame, f"{conf}:{clid}", (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2, cv2.LINE_AA)
     
-    save_run_path = os.path.join(SAVE_RUN_PATH, utils.folder_name('run'))
-    if not os.path.exists(save_run_path):
-        os.makedirs(save_run_path)
 
-    cv2.imwrite(os.path.join(save_run_path, utils.file_name('med')), frame)
+    cv2.imwrite(os.path.join(utils.create_run_folder_output(SAVE_RUN_PATH, 'run'), utils.file_name('med')), frame)
         
     return 0
 
