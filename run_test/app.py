@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 from ultralytics import YOLO
 from dotenv import load_dotenv
+from PIL import Image
 
 # ---- your modules ----
 import utils
@@ -230,6 +231,27 @@ def optimize_image_for_ocr(image_path: str, max_size: int = 800) -> str:
     optimized_path = image_path.replace('.jpg', '_opt.jpg')
     cv2.imwrite(optimized_path, img_resized, [cv2.IMWRITE_JPEG_QUALITY, 75])
     return optimized_path
+
+def optimize_roi_in_memory(roi_image: np.ndarray, max_size: int = 400) -> Image.Image:
+    """Process ROI directly in memory without file I/O"""
+    height, width = roi_image.shape[:2]
+    
+    # Resize
+    if max(height, width) > max_size:
+        scale = max_size / max(height, width)
+        new_width = int(width * scale)
+        new_height = int(height * scale)
+        img_resized = cv2.resize(roi_image, (new_width, new_height), interpolation=cv2.INTER_AREA)
+    else:
+        img_resized = roi_image
+    
+    # Convert to grayscale and sharpen
+    img_gray = cv2.cvtColor(img_resized, cv2.COLOR_BGR2GRAY)
+    kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]])
+    img_sharp = cv2.filter2D(img_gray, -1, kernel)
+    
+    # Convert to PIL Image directly
+    return Image.fromarray(img_sharp)
 
 
 @app.get("/health")
