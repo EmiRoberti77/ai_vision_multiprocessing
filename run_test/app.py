@@ -65,17 +65,22 @@ class YoloDetect:
 # ---------- Persistent RTSP reader ----------
 class RTSPReader:
     """
-    Background thread that always reads RTSP and holds the latest frame in memory.
-    Endpoint fetches the latest frame via get_latest().
-    Auto-reconnects on errors.
+    Ultra-low-buffer RTSP reader using OpenCV CAP_FFMPEG.
+    - Forces FFmpeg low-latency demux/decoder options (no large queues).
+    - Grabs continuously, drops everything except the most recent frame.
+    - Avoids decode on every packet by using grab() to flush, retrieve() to publish.
     """
-    def __init__(self, url: str):
+    def __init__(self, url: str, transport: str = "tcp"):
         self.url = url
+        self.transport = transport  # "tcp" or "udp"
         self._lock = threading.Lock()
         self._cap: Optional[cv2.VideoCapture] = None
-        self._latest: Optional[Tuple[float, any]] = None  # (timestamp_ms, frame)
+        self._latest: Optional[Tuple[float, np.ndarray]] = None  # (ts_ms, frame_bgr)
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, name="rtsp-reader", daemon=True)
+
+        # small sleep to yield CPU in the inner loop (ms)
+        self.read_sleep_ms = 1
 
     def start(self):
         if not self._thread.is_alive():
@@ -90,43 +95,85 @@ class RTSPReader:
             pass
 
     def _open(self) -> bool:
+        # Must be set BEFORE creating VideoCapture
+        os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
+            f"rtsp_transport;tcp"           # or udp, but match your streamer
+            "|stimeout;5000000"             # 5s (µs) socket timeout
+            "|fflags;nobuffer"
+            "|flags;low_delay"
+            "|max_delay;0"
+            "|probesize;32768"
+            "|analyzeduration;0"
+            "|use_wallclock_as_timestamps;1"
+            "|reorder_queue_size;0"         # ignored if not supported; safe to keep
+        )
+
+        # Force the FFmpeg backend:
         self._cap = cv2.VideoCapture(self.url, cv2.CAP_FFMPEG)
         if not self._cap.isOpened():
             return False
-        # reduce buffering if backend supports it
+
+        # Minimise internal queue if supported
         try:
             self._cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         except Exception:
             pass
-        # warmup
+
+        # Warmup/flush: grab a handful of packets to clear any backlog
         for _ in range(max(0, RTSP_WARMUP_READS)):
-            self._cap.read()
+            self._cap.grab()
+
         return True
 
     def _run(self):
+        print('_run()')
+        MAX_DRAIN = 8  # small, bounded flush per cycle
         while not self._stop.is_set():
+            print('1')
             try:
                 if not self._open():
-                    time.sleep(RTSP_RECONNECT_DELAY)
+                    time.sleep(0.5)
                     continue
-
+                print('2')
+                # Continuous loop:
+                # - aggressively grab to discard queued packets
+                # - retrieve once to decode/publish the freshest frame
                 while not self._stop.is_set():
-                    ok, frame = self._cap.read()
-                    if not ok or frame is None:
-                        # lost connection; break to reopen
+                    print('running', time.time())
+                    cap = self._cap
+                    if cap is None:
+                        print('break_1')
                         break
+                    print('3')
+                    # Drain any backlog quickly (no decode cost)
+                    drained = 0
+                    while drained < MAX_DRAIN: 
+                        ok = cap.grab()
+                        # When there's nothing left immediately, stop draining
+                        # (grab() returns quickly if no packet ready)
+                        if not ok: 
+                            print('break_2 (grab failed)')
+                            break
+                        drained += 1
 
-                    ts_ms = time.time() * 1000.0
-                    with self._lock:
-                        # print(f"=>{ts_ms}")
-                        self._latest = (ts_ms, frame)
-
-                    # tiny sleep to avoid pegging CPU if camera runs very high FPS
-                    time.sleep(READ_SLEEP_MS)
-                    # print(f"RTSP_THREAD {time.time()}")
-
+                        print('4')
+                        # Now retrieve the most recent frame (decode once)
+                        ok, frame = cap.retrieve()
+                        if not ok or frame is None:
+                            # camera hiccup -> reopen
+                            print('break_3')
+                            break
+                        print('5')
+                        ts_ms = time.time() * 1000.0
+                        with self._lock:
+                            # keep only the freshest decoded frame
+                            self._latest = (ts_ms, frame)
+                        print('5')
+                        if self.read_sleep_ms > 0:
+                            time.sleep(self.read_sleep_ms / 1000.0)
+                        print('6')
+                        print('7')
             except Exception:
-                # swallow and retry
                 pass
             finally:
                 try:
@@ -135,18 +182,14 @@ class RTSPReader:
                 except Exception:
                     pass
                 self._cap = None
-
-            # brief delay before reconnect
-            time.sleep(RTSP_RECONNECT_DELAY)
-
-    def get_latest(self) -> Optional[any]:
+                time.sleep(0.5)  # brief backoff before reconnect
+                print('8')
+    def get_latest(self) -> Optional[np.ndarray]:
         with self._lock:
             if self._latest is None:
                 return None
-            ts_ms, frame = self._latest
-            # print(f"<={ts_ms}")
-            # return a copy to avoid concurrent mutations
-            return frame.copy()
+            _, img = self._latest
+        return img.copy()
 # -------------------------------------------
 
 
@@ -228,29 +271,13 @@ def process(save_artifacts: bool = Query(default=True, description="Save ROI/ful
     run_folder = utils.create_run_folder_output(SAVE_RUN_PATH, "run") if save_artifacts else None
     crop_path = full_path = final_path = None
 
-    # if save_artifacts:
-    #     annotated = frame.copy()
-    #     cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 255, 0), 1)
-    #     cv2.putText(
-    #         annotated,
-    #         f"{confs[idx]:.2f}:{clids[idx]}",
-    #         (x1, y1 - 10),
-    #         cv2.FONT_HERSHEY_SIMPLEX,
-    #         0.7,
-    #         (0, 255, 0),
-    #         2,
-    #         cv2.LINE_AA,
-    #     )
-
     full_path = os.path.join(run_folder, utils.file_name("med_full"))
     cv2.imwrite(full_path, frame)
 
     crop_path = os.path.join(run_folder, utils.file_name("med_roi"))
     cv2.imwrite(crop_path, roi)
 
-    # tmp_folder = utils.create_run_folder_output(SAVE_RUN_PATH, "tmp")
-    # crop_path = os.path.join(tmp_folder, "roi.jpg")
-    # cv2.imwrite(crop_path, roi)
+
 
     result = ocr.gem_detect(crop_path)
 
