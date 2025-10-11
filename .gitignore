@@ -22,4 +22,3 @@ runs
 .env# Large video files - keep local only
 *.mp4
 ffmpeg/*.mp4
-rtsp_streamer/videos/*.mp4
