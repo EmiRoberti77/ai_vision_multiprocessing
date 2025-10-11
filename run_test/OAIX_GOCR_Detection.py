@@ -17,7 +17,10 @@ class OAIX_GOCR_Detection():
         self.model = genai.GenerativeModel(
             model_name='gemini-2.5-flash',
             generation_config={
-                "response_mime_type": "application/json"
+                "response_mime_type": "application/json",
+                "temperature": 0.1,  # Lower temperature for more consistent, faster responses
+                # "max_output_tokens": 100,  # Limit output tokens for faster processing
+                # "candidate_count": 1  # Only generate one candidate
             },
             system_instruction=(
                 "You are an expert data extractor. Your task is to analyze the provided "
@@ -28,8 +31,8 @@ class OAIX_GOCR_Detection():
             )
         )
     
-    def gem_detect(self, image_path):
-        img = Image.open(image_path)
+    def gem_detect(self, image):
+        img = Image.open(image)
         
         prompt = "Extract the Lot/Batch number and Expiry Date from this medicine package. Return as JSON with keys 'lot_number' and 'expiry_date'."
         
