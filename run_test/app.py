@@ -126,25 +126,18 @@ class RTSPReader:
         return True
 
     def _run(self):
-        print('_run()')
         MAX_DRAIN = 8  # small, bounded flush per cycle
         while not self._stop.is_set():
-            print('1')
             try:
                 if not self._open():
                     time.sleep(0.5)
                     continue
-                print('2')
-                # Continuous loop:
-                # - aggressively grab to discard queued packets
-                # - retrieve once to decode/publish the freshest frame
+
                 while not self._stop.is_set():
-                    print('running', time.time())
                     cap = self._cap
                     if cap is None:
                         print('break_1')
                         break
-                    print('3')
                     # Drain any backlog quickly (no decode cost)
                     drained = 0
                     while drained < MAX_DRAIN: 
@@ -155,24 +148,21 @@ class RTSPReader:
                             print('break_2 (grab failed)')
                             break
                         drained += 1
-
-                        print('4')
                         # Now retrieve the most recent frame (decode once)
                         ok, frame = cap.retrieve()
                         if not ok or frame is None:
                             # camera hiccup -> reopen
                             print('break_3')
                             break
-                        print('5')
+
                         ts_ms = time.time() * 1000.0
                         with self._lock:
                             # keep only the freshest decoded frame
                             self._latest = (ts_ms, frame)
-                        print('5')
+
                         if self.read_sleep_ms > 0:
                             time.sleep(self.read_sleep_ms / 1000.0)
-                        print('6')
-                        print('7')
+
             except Exception:
                 pass
             finally:
@@ -183,7 +173,7 @@ class RTSPReader:
                     pass
                 self._cap = None
                 time.sleep(0.5)  # brief backoff before reconnect
-                print('8')
+
     def get_latest(self) -> Optional[np.ndarray]:
         with self._lock:
             if self._latest is None:
@@ -215,6 +205,32 @@ ocr = OCR()
 processed_frames = set()
 last_frame_hash = None
 
+def fmt_seconds(s):
+    h = int(s // 3600)
+    m = int((s % 3600) // 60)
+    sec = s % 60
+    return f"{h:02d}:{m:02d}:{sec:05.2f}"
+
+
+def optimize_image_for_ocr(image_path: str, max_size: int = 800) -> str:
+    """Resize and optimize image for faster OCR - reduces 24MB to ~200KB"""
+    img = cv2.imread(image_path)
+    height, width = img.shape[:2]
+    
+    # Calculate scaling to fit within max_size while maintaining aspect ratio
+    if max(height, width) > max_size:
+        scale = max_size / max(height, width)
+        new_width = int(width * scale)
+        new_height = int(height * scale)
+        img_resized = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_AREA)
+    else:
+        img_resized = img
+    
+    # Save optimized version with high compression
+    optimized_path = image_path.replace('.jpg', '_opt.jpg')
+    cv2.imwrite(optimized_path, img_resized, [cv2.IMWRITE_JPEG_QUALITY, 75])
+    return optimized_path
+
 
 @app.get("/health")
 def health():
@@ -244,14 +260,24 @@ def process(save_artifacts: bool = Query(default=True, description="Save ROI/ful
     
     # 1) Get latest frame (instant)
     import datetime
+    tot_start = time.perf_counter() 
+    start = time.perf_counter()
     current = utils.file_name('current')
     frame = reader.get_latest()
     if frame is None:
         raise HTTPException(status_code=503, detail="No fresh frame available (stream not ready or stale)")
     # 2) YOLO detection
     cv2.imwrite(current, frame)
+    stop = time.perf_counter()
+    perf = stop - start
+    print(f"GET_LATEST:{fmt_seconds(perf)}")
     print(f"{frame.shape[:2]},{frame.nbytes}")
+
+    start = time.perf_counter()
     boxes, confs, clids = detector.predict(frame)
+    stop = time.perf_counter()
+    perf = stop - start
+    print(f"PREDICT:{fmt_seconds(perf)}")
     if not boxes:
         return JSONResponse(
             status_code=200,
@@ -279,8 +305,12 @@ def process(save_artifacts: bool = Query(default=True, description="Save ROI/ful
 
 
 
-    result = ocr.gem_detect(crop_path)
-
+    start = time.perf_counter()
+    optimized = optimize_image_for_ocr(crop_path)
+    result = ocr.gem_detect(optimized)
+    stop = time.perf_counter()
+    perf = stop - start
+    print(f"OAIXGOCR:{fmt_seconds(perf)}")
     if save_artifacts:
         final = roi.copy()
         cv2.putText(final, f"lot:{result.get('lot_number')}", (10, 30), cv2.FONT_HERSHEY_DUPLEX, 0.8, (0, 255, 0), 1, cv2.LINE_AA)
@@ -306,6 +336,9 @@ def process(save_artifacts: bool = Query(default=True, description="Save ROI/ful
             "final_path": final_path,
         } if save_artifacts else None,
     }
+    tot_stop = time.perf_counter()
+    tot_perf = tot_stop - tot_start
+    print(fmt_seconds(tot_perf))
     return JSONResponse(status_code=200, content=payload)
 # -------------------------------------------
 
