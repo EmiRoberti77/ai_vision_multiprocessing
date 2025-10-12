@@ -19,4 +19,6 @@ oaix.db
 ocr_run_process_image
 mac_311
 runs
-.env
+.env# Large video files - keep local only
+*.mp4
+ffmpeg/*.mp4

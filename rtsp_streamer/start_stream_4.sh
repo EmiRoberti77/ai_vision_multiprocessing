@@ -1,9 +1,9 @@
-echo "Running start_stream_1.sh"
+echo "Running start_stream_4.sh"
 
 IP=$(ip route get 8.8.8.8 | awk '{print $7}')
 echo "IP: $IP"
 
-ffmpeg -re -stream_loop -1 -i videos/medicines.mp4 \
+ffmpeg -re -stream_loop -1 -i videos/Medicinas_rotated_180_1.mp4 \
   -vf "scale=1920:1080" \
   -c:v libx264 -preset medium -profile:v main -level 4.0 \
   -pix_fmt yuv420p -r 30 -g 60 -keyint_min 60 -sc_threshold 0 \
