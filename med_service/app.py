@@ -1,6 +1,7 @@
 import os
 import time
 import threading
+import hashlib
 from typing import Optional, Dict, Any, Tuple
 
 import cv2
