@@ -27,6 +27,7 @@ MODELS_LIST = ("oaix_medicine_v1.pt", "yolo11m.pt")
 MODEL_PATH = os.path.join(ROOT, MODELS_FOLDER, MODELS_LIST[0])
 
 RTSP_URL = os.getenv("RTSP_URL", "rtsp://172.23.23.15:8554/mystream_5")
+print(f"{RTSP_URL=}")
 RTSP_RECONNECT_DELAY = float(os.getenv("RTSP_RECONNECT_DELAY", "2.0"))  # seconds before retry
 RTSP_WARMUP_READS = int(os.getenv("RTSP_WARMUP_READS", "5"))            # discard some frames on connect
 FRAME_STALE_MS = int(os.getenv("FRAME_STALE_MS", "1500"))               # max allowed age of latest frame
