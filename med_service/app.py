@@ -8,9 +8,12 @@ import cv2
 import numpy as np
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.responses import StreamingResponse
 from ultralytics import YOLO
 from dotenv import load_dotenv
 from PIL import Image
+from fastapi.staticfiles import StaticFiles
 
 # ---- your modules ----
 import utils
@@ -27,6 +30,7 @@ MODELS_LIST = ("oaix_medicine_v1.pt", "yolo11m.pt")
 MODEL_PATH = os.path.join(ROOT, MODELS_FOLDER, MODELS_LIST[0])
 
 RTSP_URL = os.getenv("RTSP_URL", "rtsp://172.23.23.15:8554/mystream_5")
+print(f"{RTSP_URL=}")
 RTSP_RECONNECT_DELAY = float(os.getenv("RTSP_RECONNECT_DELAY", "2.0"))  # seconds before retry
 RTSP_WARMUP_READS = int(os.getenv("RTSP_WARMUP_READS", "5"))            # discard some frames on connect
 FRAME_STALE_MS = int(os.getenv("FRAME_STALE_MS", "1500"))               # max allowed age of latest frame
@@ -196,6 +200,18 @@ def pick_detection(boxes, confs, clids):
 
 # ---------- App wiring ----------
 app = FastAPI(title="Medicine Label Triggered Processor (Persistent RTSP)")
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
+
+app.mount("/runs", StaticFiles(directory=SAVE_RUN_PATH), name="runs")
+
 reader = RTSPReader(RTSP_URL)
 reader.start()
 
@@ -263,6 +279,36 @@ def health():
         "frame_available": frame is not None,
         "model_loaded": True,
     }
+
+
+@app.get("/stream/mjpg")
+def stream_mjpeg(fps: int = 15, quality: int = 80):
+    interval = 1.0 / max(1, min(fps, 60))
+
+    def gen():
+        boundary = b"--frame"
+        while True:
+            frame = reader.get_latest()  # freshest frame from your persistent reader
+            if frame is None:
+                time.sleep(0.03)
+                continue
+            ok, jpg = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), int(quality)])
+            if not ok:
+                continue
+            chunk = jpg.tobytes()
+            yield (
+                boundary + b"\r\n"
+                b"Content-Type: image/jpeg\r\n"
+                b"Content-Length: " + str(len(chunk)).encode() + b"\r\n\r\n" +
+                chunk + b"\r\n"
+            )
+            time.sleep(interval)
+
+    return StreamingResponse(
+        gen(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+    )
 
 
 @app.get("/stats")
