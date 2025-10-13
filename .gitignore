@@ -29,6 +29,7 @@ ffmpeg/*.mp4
 # dependencies
 /node_modules
 /.pnp
+**/node_modules/
 .pnp.*
 .yarn/*
 !.yarn/patches

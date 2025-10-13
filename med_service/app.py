@@ -334,7 +334,7 @@ def process(save_artifacts: bool = Query(default=True, description="Save ROI/ful
     if frame is None:
         raise HTTPException(status_code=503, detail="No fresh frame available (stream not ready or stale)")
     # 2) YOLO detection
-    cv2.imwrite(current, frame)
+    # cv2.imwrite(current, frame)
     stop = time.perf_counter()
     perf = stop - start
     print(f"GET_LATEST:{fmt_seconds(perf)}")
