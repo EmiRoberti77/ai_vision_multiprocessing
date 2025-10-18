@@ -69,3 +69,5 @@ next-env.d.ts# Next.js build output
 .next/
 next_test_client/med_client/.next/
 **/.next/
+
+lote_predictions.db

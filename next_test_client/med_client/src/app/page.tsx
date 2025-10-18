@@ -7,7 +7,7 @@ type ApiResponse = {
   message: string;
   detections: number;
   chosen_detection?: { box: [number, number, number, number]; confidence: number; class_id: number };
-  result?: { lot_number: string | null; expiry_date: string | null };
+  result?: { lot_number: string | null; expiry_date: string | null; lote_match?: string };
   artifacts?: { full_frame_path?: string; crop_path?: string; final_path?: string } | null;
 };
 
@@ -50,9 +50,9 @@ export default function Home() {
 
   return (
     <div className="font-sans min-h-screen bg-gray-50 text-gray-900">
-      {/* Top bar */}
-      <div className="h-10 px-2 py-1 flex items-center gap-2 border-b sticky top-0 bg-gray-50 z-10">
-        <h1 className="text-[12px] font-semibold mr-2">Medicine OCR</h1>
+      {/* Control bar */}
+      <div className="h-12 px-4 py-2 flex items-center gap-2 border-b sticky top-0 bg-white z-10">
+        <h2 className="text-sm font-semibold mr-2">Live Processing</h2>
         <input
           className="flex-1 rounded-md border px-2 py-1 text-[11px] outline-none focus:ring-1 focus:ring-blue-500"
           value={endpoint}
@@ -171,6 +171,20 @@ export default function Home() {
                     <div className="text-sm font-semibold">{data?.result?.expiry_date ?? '—'}</div>
                   </div>
                 </div>
+
+                {/* Lote Match Status */}
+                {data?.result?.lote_match && (
+                  <div className="rounded border p-2">
+                    <div className="text-[10px] text-gray-500">Database Match</div>
+                    <div className={`text-sm font-semibold ${
+                      data.result.lote_match === 'Match' 
+                        ? 'text-green-600' 
+                        : 'text-red-600'
+                    }`}>
+                      {data.result.lote_match}
+                    </div>
+                  </div>
+                )}
               </section>
 
               {/* Artifacts list (optional; server paths) */}
