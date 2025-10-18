@@ -202,6 +202,8 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
+# create runs folder
+utils.create_run_folder_output(SAVE_RUN_PATH, "run")
 # Mount runs folder to serve predictions
 app.mount("/runs", StaticFiles(directory=SAVE_RUN_PATH), name="runs")
 # start RTSP Reader and streamer
