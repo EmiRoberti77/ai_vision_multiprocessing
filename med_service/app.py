@@ -2,7 +2,6 @@ import os
 import time
 import threading
 from typing import Optional, Dict, Any, Tuple
-
 import cv2
 import numpy as np
 from fastapi import FastAPI, HTTPException, Query
@@ -11,14 +10,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import StreamingResponse
 from ultralytics import YOLO
 from dotenv import load_dotenv
-from PIL import Image
 from fastapi.staticfiles import StaticFiles
-
 from db.og_lotes.readlotes import LoteDB
 import utils
 from OAIX_GOCR_Detection import OAIX_GOCR_Detection as OCR
-# ----------------------
-
 load_dotenv()
 
 # ---------- CONFIG ----------
@@ -28,17 +23,14 @@ MODELS_FOLDER = os.path.join(ROOT, "models")
 MODELS_LIST = ("oaix_medicine_v1.pt", "yolo11m.pt")
 MODEL_PATH = os.path.join(ROOT, MODELS_FOLDER, MODELS_LIST[0])
 LOTE_DB = os.path.join(ROOT, 'db', 'og_lotes', 'Listado de lotes.xlsb')
-
 RTSP_URL = os.getenv("RTSP_URL", "rtsp://172.23.23.15:8554/mystream_5")
 print(f"{RTSP_URL=}")
 RTSP_RECONNECT_DELAY = float(os.getenv("RTSP_RECONNECT_DELAY", "2.0"))  # seconds before retry
 RTSP_WARMUP_READS = int(os.getenv("RTSP_WARMUP_READS", "5"))            # discard some frames on connect
 FRAME_STALE_MS = int(os.getenv("FRAME_STALE_MS", "1500"))               # max allowed age of latest frame
 READ_SLEEP_MS = int(os.getenv("READ_SLEEP_MS", "1"))                    # small sleep to yield CPU
-
 MIN_CONF = float(os.getenv("YOLO_MIN_CONF", "0.30"))
 IOU = float(os.getenv("YOLO_IOU", "0.40"))
-
 LABEL_CLASS_ID = os.getenv("LABEL_CLASS_ID")
 LABEL_CLASS_ID = int(LABEL_CLASS_ID) if LABEL_CLASS_ID not in (None, "", "None") else None
 # ----------------------------
@@ -210,68 +202,20 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
+# Mount runs folder to serve predictions
 app.mount("/runs", StaticFiles(directory=SAVE_RUN_PATH), name="runs")
-
+# start RTSP Reader and streamer
 reader = RTSPReader(RTSP_URL)
 reader.start()
-
+# Start Yolo prediction
 detector = YoloDetect(MODEL_PATH)
+# Start OCR Reader
 ocr = OCR()
-
-
+# Start LoteDB 
 lote_db = LoteDB(LOTE_DB)
-
 # Track processed frames to avoid duplicates
 processed_frames = set()
 last_frame_hash = None
-
-def fmt_seconds(s):
-    h = int(s // 3600)
-    m = int((s % 3600) // 60)
-    sec = s % 60
-    return f"{h:02d}:{m:02d}:{sec:05.2f}"
-
-
-def optimize_image_for_ocr(image_path: str, max_size: int = 800) -> str:
-    """Resize and optimize image for faster OCR - reduces 24MB to ~200KB"""
-    img = cv2.imread(image_path)
-    height, width = img.shape[:2]
-    
-    # Calculate scaling to fit within max_size while maintaining aspect ratio
-    if max(height, width) > max_size:
-        scale = max_size / max(height, width)
-        new_width = int(width * scale)
-        new_height = int(height * scale)
-        img_resized = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_AREA)
-    else:
-        img_resized = img
-    
-    # Save optimized version with high compression
-    optimized_path = image_path.replace('.jpg', '_opt.jpg')
-    cv2.imwrite(optimized_path, img_resized, [cv2.IMWRITE_JPEG_QUALITY, 75])
-    return optimized_path
-
-def optimize_roi_in_memory(roi_image: np.ndarray, max_size: int = 400) -> Image.Image:
-    """Process ROI directly in memory without file I/O"""
-    height, width = roi_image.shape[:2]
-    
-    # Resize
-    if max(height, width) > max_size:
-        scale = max_size / max(height, width)
-        new_width = int(width * scale)
-        new_height = int(height * scale)
-        img_resized = cv2.resize(roi_image, (new_width, new_height), interpolation=cv2.INTER_AREA)
-    else:
-        img_resized = roi_image
-    
-    # Convert to grayscale and sharpen
-    img_gray = cv2.cvtColor(img_resized, cv2.COLOR_BGR2GRAY)
-    kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]])
-    img_sharp = cv2.filter2D(img_gray, -1, kernel)
-    
-    # Convert to PIL Image directly
-    return Image.fromarray(img_sharp)
-
 
 @app.get("/health")
 def health():
@@ -328,35 +272,28 @@ def stats():
 @app.post("/process")
 def process(save_artifacts: bool = Query(default=True, description="Save ROI/full/final images under /runs")):
     global last_frame_hash, processed_frames
-    
     # 1) Get latest frame (instant)
-    import datetime
     tot_start = time.perf_counter() 
     start = time.perf_counter()
-    current = utils.file_name('current')
     frame = reader.get_latest()
     if frame is None:
         raise HTTPException(status_code=503, detail="No fresh frame available (stream not ready or stale)")
-    # 2) YOLO detection
-    # cv2.imwrite(current, frame)
     stop = time.perf_counter()
     perf = stop - start
-    _GET_LATEST_IN_S = fmt_seconds(perf)
+    _GET_LATEST_IN_S = utils.fmt_seconds(perf)
     print(f"GET_LATEST:{_GET_LATEST_IN_S}")
-    print(f"{frame.shape[:2]},{frame.nbytes}")
-
+    # 2) YOLO detection
     start = time.perf_counter()
     boxes, confs, clids = detector.predict(frame)
     stop = time.perf_counter()
     perf = stop - start
-    _PREDICT_IN_S = fmt_seconds(perf)
+    _PREDICT_IN_S = utils.fmt_seconds(perf)
     print(f"PREDICT:{_PREDICT_IN_S}")
     if not boxes:
         return JSONResponse(
             status_code=200,
             content={"message": "No detections", "detections": 0, "result": None},
         )
-
     idx = pick_detection(boxes, confs, clids)
     x1, y1, x2, y2 = boxes[idx]
     roi = YoloDetect.crop(frame, x1, y1, x2, y2)
@@ -365,22 +302,19 @@ def process(save_artifacts: bool = Query(default=True, description="Save ROI/ful
             status_code=200,
             content={"message": "Detection had empty ROI", "detections": len(boxes), "result": None},
         )
-
     run_folder = utils.create_run_folder_output(SAVE_RUN_PATH, "run") if save_artifacts else None
     crop_path = full_path = final_path = None
-
     full_path = os.path.join(run_folder, utils.file_name("med_full"))
     cv2.imwrite(full_path, frame)
-
     crop_path = os.path.join(run_folder, utils.file_name("med_roi"))
     cv2.imwrite(crop_path, roi)
-
+    # 3) OCR Detection
     start = time.perf_counter()
-    optimized = optimize_image_for_ocr(crop_path)
+    optimized = utils.optimize_image_for_ocr(crop_path)
     result = ocr.gem_detect(optimized)
     stop = time.perf_counter()
     perf = stop - start
-    _OAIXGOCR_IN_S = fmt_seconds(perf)
+    _OAIXGOCR_IN_S = utils.fmt_seconds(perf)
     print(f"OAIXGOCR:{_OAIXGOCR_IN_S}")
 
     lot = result.get('lot_number')
@@ -393,7 +327,7 @@ def process(save_artifacts: bool = Query(default=True, description="Save ROI/ful
         final_path = os.path.join(run_folder, utils.file_name("final"))
         cv2.imwrite(final_path, final)
 
-    # lote search
+    # 4) Lote Match
     start = time.perf_counter()
     print(f'Lote search={lot}')
     lote_found = lote_db.find_lote(lote=lot)
@@ -404,12 +338,13 @@ def process(save_artifacts: bool = Query(default=True, description="Save ROI/ful
         lote_match = 'No Match'
     stop = time.perf_counter()
     perf = stop - start
-    _LOTE_SEARCH_IN_S = fmt_seconds(perf)
+    _LOTE_SEARCH_IN_S = utils.fmt_seconds(perf)
     print(f"LOTE_SEARCH:{_LOTE_SEARCH_IN_S}")
     tot_stop = time.perf_counter()        
     tot_perf = tot_stop - tot_start
-    _TOTAL_IN_S = fmt_seconds(tot_perf)
-
+    _TOTAL_IN_S = utils.fmt_seconds(tot_perf)
+    
+    # 5) Completed, create return payload
     payload: Dict[str, Any] = {
         "message": "Processed latest frame",
         "detections": len(boxes),
