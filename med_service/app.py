@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from PIL import Image
 from fastapi.staticfiles import StaticFiles
 
-# ---- your modules ----
+from db.og_lotes.readlotes import LoteDB
 import utils
 from OAIX_GOCR_Detection import OAIX_GOCR_Detection as OCR
 # ----------------------
@@ -27,6 +27,7 @@ SAVE_RUN_PATH = os.path.join(ROOT, "runs")
 MODELS_FOLDER = os.path.join(ROOT, "models")
 MODELS_LIST = ("oaix_medicine_v1.pt", "yolo11m.pt")
 MODEL_PATH = os.path.join(ROOT, MODELS_FOLDER, MODELS_LIST[0])
+LOTE_DB = os.path.join(ROOT, 'db', 'og_lotes', 'Listado de lotes.xlsb')
 
 RTSP_URL = os.getenv("RTSP_URL", "rtsp://172.23.23.15:8554/mystream_5")
 print(f"{RTSP_URL=}")
@@ -217,6 +218,9 @@ reader.start()
 detector = YoloDetect(MODEL_PATH)
 ocr = OCR()
 
+
+lote_db = LoteDB(LOTE_DB)
+
 # Track processed frames to avoid duplicates
 processed_frames = set()
 last_frame_hash = None
@@ -337,14 +341,16 @@ def process(save_artifacts: bool = Query(default=True, description="Save ROI/ful
     # cv2.imwrite(current, frame)
     stop = time.perf_counter()
     perf = stop - start
-    print(f"GET_LATEST:{fmt_seconds(perf)}")
+    _GET_LATEST_IN_S = fmt_seconds(perf)
+    print(f"GET_LATEST:{_GET_LATEST_IN_S}")
     print(f"{frame.shape[:2]},{frame.nbytes}")
 
     start = time.perf_counter()
     boxes, confs, clids = detector.predict(frame)
     stop = time.perf_counter()
     perf = stop - start
-    print(f"PREDICT:{fmt_seconds(perf)}")
+    _PREDICT_IN_S = fmt_seconds(perf)
+    print(f"PREDICT:{_PREDICT_IN_S}")
     if not boxes:
         return JSONResponse(
             status_code=200,
@@ -360,7 +366,6 @@ def process(save_artifacts: bool = Query(default=True, description="Save ROI/ful
             content={"message": "Detection had empty ROI", "detections": len(boxes), "result": None},
         )
 
-    # 4) Save artifacts (optional)
     run_folder = utils.create_run_folder_output(SAVE_RUN_PATH, "run") if save_artifacts else None
     crop_path = full_path = final_path = None
 
@@ -370,20 +375,40 @@ def process(save_artifacts: bool = Query(default=True, description="Save ROI/ful
     crop_path = os.path.join(run_folder, utils.file_name("med_roi"))
     cv2.imwrite(crop_path, roi)
 
-
-
     start = time.perf_counter()
     optimized = optimize_image_for_ocr(crop_path)
     result = ocr.gem_detect(optimized)
     stop = time.perf_counter()
     perf = stop - start
-    print(f"OAIXGOCR:{fmt_seconds(perf)}")
+    _OAIXGOCR_IN_S = fmt_seconds(perf)
+    print(f"OAIXGOCR:{_OAIXGOCR_IN_S}")
+
+    lot = result.get('lot_number')
+    exp = result.get('expiry_date')
+
     if save_artifacts:
         final = roi.copy()
-        cv2.putText(final, f"lot:{result.get('lot_number')}", (10, 30), cv2.FONT_HERSHEY_DUPLEX, 0.8, (0, 255, 0), 1, cv2.LINE_AA)
-        cv2.putText(final, f"exp:{result.get('expiry_date')}", (10, 60), cv2.FONT_HERSHEY_DUPLEX, 0.8, (0, 255, 0), 1, cv2.LINE_AA)
+        cv2.putText(final, f"lot:{lot}", (10, 30), cv2.FONT_HERSHEY_DUPLEX, 0.8, (0, 255, 0), 1, cv2.LINE_AA)
+        cv2.putText(final, f"exp:{exp}", (10, 60), cv2.FONT_HERSHEY_DUPLEX, 0.8, (0, 255, 0), 1, cv2.LINE_AA)
         final_path = os.path.join(run_folder, utils.file_name("final"))
         cv2.imwrite(final_path, final)
+
+    # lote search
+    start = time.perf_counter()
+    print(f'Lote search={lot}')
+    lote_found = lote_db.find_lote(lote=lot)
+    print(f'{lote_found=}')
+    if lote_found is not None and not lote_found.empty:
+        lote_match = 'Match'
+    else:
+        lote_match = 'No Match'
+    stop = time.perf_counter()
+    perf = stop - start
+    _LOTE_SEARCH_IN_S = fmt_seconds(perf)
+    print(f"LOTE_SEARCH:{_LOTE_SEARCH_IN_S}")
+    tot_stop = time.perf_counter()        
+    tot_perf = tot_stop - tot_start
+    _TOTAL_IN_S = fmt_seconds(tot_perf)
 
     payload: Dict[str, Any] = {
         "message": "Processed latest frame",
@@ -396,16 +421,22 @@ def process(save_artifacts: bool = Query(default=True, description="Save ROI/ful
         "result": {
             "lot_number": result.get("lot_number"),
             "expiry_date": result.get("expiry_date"),
+            "lote_match": lote_match
         },
+        "oaix_perf":{
+            "get_latest_frame":_GET_LATEST_IN_S,
+            "box_detection":_PREDICT_IN_S,
+            "lote_expiry_predicition":_OAIXGOCR_IN_S,
+            "lote_search":_LOTE_SEARCH_IN_S,
+            "total_process_time":_TOTAL_IN_S
+        }, 
         "artifacts": {
             "full_frame_path": full_path,
             "crop_path": crop_path,
             "final_path": final_path,
         } if save_artifacts else None,
     }
-    tot_stop = time.perf_counter()
-    tot_perf = tot_stop - tot_start
-    print(fmt_seconds(tot_perf))
+    
     return JSONResponse(status_code=200, content=payload)
 # -------------------------------------------
 
