@@ -12,6 +12,7 @@ from ultralytics import YOLO
 from dotenv import load_dotenv
 from fastapi.staticfiles import StaticFiles
 from db.og_lotes.readlotes import LoteDB
+from db.lote_predictions import lote_prediction_db
 import utils
 from OAIX_GOCR_Detection import OAIX_GOCR_Detection as OCR
 load_dotenv()
@@ -311,12 +312,12 @@ def process(save_artifacts: bool = Query(default=True, description="Save ROI/ful
     crop_path = os.path.join(run_folder, utils.file_name("med_roi"))
     cv2.imwrite(crop_path, roi)
     # 3) OCR Detection
-    start = time.perf_counter()
+    ocr_start = time.perf_counter()
     optimized = utils.optimize_image_for_ocr(crop_path)
     result = ocr.gem_detect(optimized)
-    stop = time.perf_counter()
-    perf = stop - start
-    _OAIXGOCR_IN_S = utils.fmt_seconds(perf)
+    ocr_stop = time.perf_counter()
+    ocr_perf = ocr_stop - ocr_start
+    _OAIXGOCR_IN_S = utils.fmt_seconds(ocr_perf)
     print(f"OAIXGOCR:{_OAIXGOCR_IN_S}")
 
     lot = result.get('lot_number')
@@ -346,7 +347,40 @@ def process(save_artifacts: bool = Query(default=True, description="Save ROI/ful
     tot_perf = tot_stop - tot_start
     _TOTAL_IN_S = utils.fmt_seconds(tot_perf)
     
-    # 5) Completed, create return payload
+    # 5) Save prediction to database
+    try:
+        # Convert performance metrics to milliseconds
+        total_time_ms = tot_perf * 1000
+        ocr_time_ms = ocr_perf * 1000
+        search_time_ms = perf * 1000
+        
+        # Determine match status and boolean
+        is_match = lote_match == 'Match'
+        
+        # Save to database
+        prediction_id = lote_prediction_db.save_prediction(
+            predicted_lot=lot,
+            predicted_expiry=exp,
+            is_match=is_match,
+            match_status=lote_match,
+            detection_confidence=confs[idx],
+            detection_box=[x1, y1, x2, y2],
+            class_id=int(clids[idx]),
+            processing_time_ms=total_time_ms,
+            ocr_time_ms=ocr_time_ms,
+            lote_search_time_ms=search_time_ms,
+            full_frame_path=full_path,
+            crop_path=crop_path,
+            final_path=final_path,
+            raw_ocr_text=result.get('raw_ocr_text', '')
+        )
+        print(f"Saved prediction to database with ID: {prediction_id}")
+        
+    except Exception as e:
+        print(f"Error saving prediction to database: {e}")
+        # Don't fail the request if database save fails
+    
+    # 6) Completed, create return payload
     payload: Dict[str, Any] = {
         "message": "Processed latest frame",
         "detections": len(boxes),
@@ -375,6 +409,135 @@ def process(save_artifacts: bool = Query(default=True, description="Save ROI/ful
     }
     
     return JSONResponse(status_code=200, content=payload)
+# -------------------------------------------
+
+
+# ---------- REPORTING ENDPOINTS ----------
+
+@app.get("/reports/daily-stats")
+def get_daily_stats(date: str = Query(..., description="Date in YYYY-MM-DD format")):
+    """
+    Get daily statistics for lote predictions
+    """
+    try:
+        stats = lote_prediction_db.get_daily_stats(date)
+        return JSONResponse(status_code=200, content=stats)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting daily stats: {str(e)}")
+
+
+@app.get("/reports/predictions")
+def get_predictions_by_date(
+    date: str = Query(..., description="Date in YYYY-MM-DD format"),
+    limit: int = Query(default=100, description="Number of records to return"),
+    offset: int = Query(default=0, description="Number of records to skip")
+):
+    """
+    Get list of predictions for a specific date with pagination
+    """
+    try:
+        predictions = lote_prediction_db.get_predictions_by_date(date, limit, offset)
+        return JSONResponse(status_code=200, content={
+            "date": date,
+            "predictions": predictions,
+            "limit": limit,
+            "offset": offset,
+            "count": len(predictions)
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting predictions: {str(e)}")
+
+
+@app.get("/reports/date-range")
+def get_date_range_stats(
+    start_date: str = Query(..., description="Start date in YYYY-MM-DD format"),
+    end_date: str = Query(..., description="End date in YYYY-MM-DD format")
+):
+    """
+    Get statistics for a date range
+    """
+    try:
+        stats = lote_prediction_db.get_date_range_stats(start_date, end_date)
+        return JSONResponse(status_code=200, content={
+            "start_date": start_date,
+            "end_date": end_date,
+            "daily_stats": stats
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting date range stats: {str(e)}")
+
+
+@app.get("/reports/export-csv")
+def export_csv(date: str = Query(..., description="Date in YYYY-MM-DD format")):
+    """
+    Export predictions for a specific date as CSV
+    """
+    try:
+        from fastapi.responses import StreamingResponse
+        import io
+        
+        # Get data as DataFrame
+        df = lote_prediction_db.export_to_csv(date)
+        
+        if df.empty:
+            raise HTTPException(status_code=404, detail=f"No predictions found for date {date}")
+        
+        # Convert DataFrame to CSV string
+        csv_buffer = io.StringIO()
+        df.to_csv(csv_buffer, index=False)
+        csv_content = csv_buffer.getvalue()
+        
+        # Create streaming response
+        def generate():
+            yield csv_content
+        
+        filename = f"lote_predictions_{date}.csv"
+        headers = {
+            'Content-Disposition': f'attachment; filename="{filename}"'
+        }
+        
+        return StreamingResponse(
+            io.BytesIO(csv_content.encode('utf-8')),
+            media_type='text/csv',
+            headers=headers
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error exporting CSV: {str(e)}")
+
+
+@app.get("/reports/summary")
+def get_summary():
+    """
+    Get overall summary statistics
+    """
+    try:
+        from datetime import datetime, timedelta
+        
+        # Get stats for today and yesterday
+        today = datetime.now().strftime('%Y-%m-%d')
+        yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+        
+        today_stats = lote_prediction_db.get_daily_stats(today)
+        yesterday_stats = lote_prediction_db.get_daily_stats(yesterday)
+        
+        # Get last 7 days stats
+        week_stats = []
+        for i in range(7):
+            date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
+            stats = lote_prediction_db.get_daily_stats(date)
+            if stats['total_predictions'] > 0:
+                week_stats.append(stats)
+        
+        return JSONResponse(status_code=200, content={
+            "today": today_stats,
+            "yesterday": yesterday_stats,
+            "last_7_days": week_stats
+        })
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting summary: {str(e)}")
+
 # -------------------------------------------
 
 

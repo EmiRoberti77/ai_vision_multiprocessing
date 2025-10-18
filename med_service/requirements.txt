@@ -21,3 +21,4 @@ pandas
 pyxlsb 
 pyarrow 
 rapidfuzz
+sqlalchemy
